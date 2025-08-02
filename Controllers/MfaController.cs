@@ -88,7 +88,7 @@ namespace AuthCenter.Controllers
         public async Task<JSONResult> EnableMfaVerify(WebAuthnRequest<string> request)
         {
             var user = HttpContext.Items["user"] as User;
-            var secret = await _cache.GetStringAsync("mfa:ena，zble:" + request.CacheOptionId);
+            var secret = await _cache.GetStringAsync("mfa:enable:" + request.CacheOptionId);
             if (String.IsNullOrEmpty(secret))
             {
                 return JSONResult.ResponseError("认证失效");
