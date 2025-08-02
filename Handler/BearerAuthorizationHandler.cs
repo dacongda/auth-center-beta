@@ -1,9 +1,7 @@
 ﻿using AuthCenter.Data;
-using AuthCenter.Models;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -105,6 +103,14 @@ namespace AuthCenter.Handler
                     _failReason = "invalid_token";
                     _failReasonDescription = "User not exist";
                     return Task.FromResult(AuthenticateResult.Fail("用户不存在"));
+                }
+
+                if(user.IsAdmin)
+                {
+                    user.Roles.Append("admin");
+                } else
+                {
+                    user.Roles.Append("user");
                 }
 
                 if (user.Group != null)

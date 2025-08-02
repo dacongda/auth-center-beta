@@ -1,6 +1,6 @@
 ﻿using AuthCenter.Models;
-using System.Security.Cryptography.X509Certificates;
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 
 namespace AuthCenter.Utils
 {

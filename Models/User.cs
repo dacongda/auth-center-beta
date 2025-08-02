@@ -1,5 +1,8 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using AuthCenter.ViewModels;
+using Fido2NetLib.Objects;
+using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace AuthCenter.Models
 {
@@ -20,6 +23,10 @@ namespace AuthCenter.Models
         /// 用户角色
         /// </summary>
         public string[] Roles { get; set; } = [];
+        // <summary>
+        /// 是否为管理员
+        /// </summary>
+        public bool IsAdmin { get; set; } = false;
         /// <summary>
         /// 所属群组
         /// </summary>
@@ -44,6 +51,37 @@ namespace AuthCenter.Models
         /// 密码
         /// </summary>
         public string? Password { get; set; }
+        /// <summary>
+        /// 偏好MFA类型
+        /// </summary>
+        public string PreferedMfaType { get; set; } = "";
+        /// <summary>
+        /// Totp 密钥
+        /// </summary>
+        public string TotpSecret { get; set; } = "";
+        /// <summary>
+        /// 是否启用邮件MFA
+        /// </summary>
+        public bool EnableEmailMfa { get; set; } = false;
+        /// <summary>
+        /// 是否启用手机MFA
+        /// </summary>
+        public bool EnablePhoneMfa { get; set; } = false;
+        /// <summary>
+        /// 是否启用TotpMfa
+        /// </summary>
+        public bool EnableTotpMfa { get; set; } = false;
+        /// <summary>
+        /// 救援代码
+        /// </summary>
+        public string RecoveryCode { get; set; } = "";
         public Group? Group { get; set; }
+        [NotMapped]
+        public int loginApplication { get; set; } = 0;
+
+        public bool VerifyPassword(string password)
+        {
+            return BCrypt.Net.BCrypt.Verify(password, Password);
+        }
     }
 }

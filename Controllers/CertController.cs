@@ -2,16 +2,10 @@
 using AuthCenter.Models;
 using AuthCenter.Utils;
 using AuthCenter.ViewModels;
-using JWT.Algorithms;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
-using System.Linq;
-using System.Security.Cryptography;
-using System.Security.Cryptography.X509Certificates;
-using System.Xml.Linq;
-
 namespace AuthCenter.Controllers
+
 {
     [ApiController]
     [Route("api/[controller]")]
@@ -36,7 +30,7 @@ namespace AuthCenter.Controllers
         [HttpGet(Name = "GetCert")]
         public JSONResult Get(int id, bool? analyseCert)
         {
-            var cert = _authCenterDbContext.Cert.Where(c=>c.Id == id).Select(c => new { c.Id, c.Name, c.Type, c.BitSize, c.Certificate, c.CryptoAlgorithm, c.CryptoSHASize }).First();
+            var cert = _authCenterDbContext.Cert.Where(c => c.Id == id).Select(c => new { c.Id, c.Name, c.Type, c.BitSize, c.Certificate, c.CryptoAlgorithm, c.CryptoSHASize }).First();
             if (cert is null)
             {
                 return JSONResult.ResponseError("证书不存在");
@@ -60,9 +54,9 @@ namespace AuthCenter.Controllers
                 certFull.Issuer = c2.Issuer;
                 certFull.NotAfter = c2.NotAfter;
                 certFull.CertFriendlyName = c2.FriendlyName;
-                
-                
-                
+
+
+
                 return JSONResult.ResponseOk(certFull);
             }
 

@@ -3,10 +3,9 @@ using AuthCenter.Models;
 using AuthCenter.ViewModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Build.Framework;
 using Microsoft.EntityFrameworkCore;
 using Pipelines.Sockets.Unofficial.Arenas;
-using System.Linq;
+using static System.Net.Mime.MediaTypeNames;
 
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -14,12 +13,12 @@ namespace AuthCenter.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize(Roles = "admin")]
     public class GroupController(AuthCenterDbContext authCenterDbContext) : ControllerBase
     {
         private readonly AuthCenterDbContext _authCenterDbContext = authCenterDbContext;
 
         [HttpGet("getGroupTree", Name = "GetGroupTree")]
+        [Authorize(Roles = "admin")]
         public JSONResult GetGroupTree(int? topGroupId, string? returnType = "tree")
         {
             var query = _authCenterDbContext.Group.AsQueryable();
@@ -39,7 +38,7 @@ namespace AuthCenter.Controllers
             List<Group>? topGroups = [];
             foreach (var group in groupList)
             {
-                if (group.ParentId == null || group.ParentId == 0)
+                if (group.ParentId == 0)
                 {
                     topGroups.Add(group);
                     continue;
@@ -75,13 +74,14 @@ namespace AuthCenter.Controllers
         }
 
         [HttpGet("getGroups", Name = "GetGroups")]
+        [Authorize(Roles = "admin")]
         public JSONResult GetGroups(int page, int pageSize, string? sortBy, string? sortOrder)
         {
             var parentCount = _authCenterDbContext.Group
-                .Where(group => group.ParentId == null || group.ParentId == 0)
+                .Where(group => group.ParentId == 0)
                 .Count();
             var parentGroups = _authCenterDbContext.Group
-                .Where(group => group.ParentId == null || group.ParentId == 0)
+                .Where(group => group.ParentId == 0)
                 .Skip((page - 1) * parentCount).
                 Take(pageSize)
                 .ToList();
@@ -94,6 +94,7 @@ namespace AuthCenter.Controllers
         }
 
         [HttpGet("refreshGroupChain", Name = "RefreshGroupChain")]
+        [Authorize(Roles = "admin")]
         public JSONResult RefreshChain()
         {
             var groupList = _authCenterDbContext.Group.ToList();
@@ -105,7 +106,7 @@ namespace AuthCenter.Controllers
             {
                 groupMap.Add(group.Id, group);
 
-                if (group.ParentId == null || group.ParentId == 0)
+                if (group.ParentId == 0)
                 {
                     topGroups.Add(group);
                     groupQueue.Enqueue(group);
@@ -141,7 +142,7 @@ namespace AuthCenter.Controllers
             while (groupQueue.Count != 0)
             {
                 var curGroup = groupQueue.Dequeue();
-                if (curGroup.ParentId == null || curGroup.ParentId == 0)
+                if (curGroup.ParentId == 0)
                 {
                     curGroup.ParentChain = curGroup.Name;
                 }
@@ -168,7 +169,45 @@ namespace AuthCenter.Controllers
             return JSONResult.ResponseOk("成功执行");
         }
 
+        [HttpGet("getGroupWithApplication", Name = "GetGroupWithApplication")]
+        [AllowAnonymous]
+        public JSONResult GetGroupWithApplication(string groupName, string? clientId)
+        {
+            var group = _authCenterDbContext.Group.Where(g => g.Name == groupName).AsNoTracking().FirstOrDefault();
+            if (group == null)
+            {
+                return JSONResult.ResponseError("群组不存在");
+            }
+
+            if (clientId != null)
+            {
+                var application = _authCenterDbContext.Application.Where(app => app.ClientId == clientId)
+                    .Select(app => new Models.Application { Id = app.Id, Name = app.Name, ProviderItems = app.ProviderItems }).AsNoTracking().FirstOrDefault();
+                group.DefaultApplication = application;
+            } else
+            {
+                var application = _authCenterDbContext.Application.Where(app => app.Id == group.DefaultApplicationId)
+                    .Select(app => new Models.Application { Id = app.Id, Name = app.Name, ProviderItems = app.ProviderItems }).AsNoTracking().FirstOrDefault();
+                group.DefaultApplication = application;
+            }
+
+            if (group.DefaultApplication == null)
+            {
+                return JSONResult.ResponseError("应用不存在");
+            }
+
+            var app = group.DefaultApplication;
+            var appProviderItems = (from pItem in app.ProviderItems where pItem.Type == "Captcha" || pItem.Type == "OAuth" select pItem.Id).ToList();
+            if (appProviderItems.Any())
+            {
+                group.DefaultApplication.Providers = [.. _authCenterDbContext.Provider.Where(p => appProviderItems.Contains(p.Id))];
+            }
+
+            return JSONResult.ResponseOk(group);
+        }
+
         [HttpGet(Name = "GetGroup")]
+        [Authorize(Roles = "admin")]
         public JSONResult Get(int id)
         {
             var group = _authCenterDbContext.Group.Find(id);
@@ -180,10 +219,11 @@ namespace AuthCenter.Controllers
         }
 
 
-        [HttpPost(Name = "addGroup")]
+        [HttpPost(Name = "AddGroup")]
+        [Authorize(Roles = "admin")]
         public JSONResult Post(Group group)
         {
-            if (group.ParentId != null && group.ParentId != 0)
+            if (group.ParentId != 0)
             {
                 var parent = _authCenterDbContext.Group.Find(group.ParentId);
                 if (parent == null)
@@ -204,6 +244,7 @@ namespace AuthCenter.Controllers
         }
 
         [HttpPut(Name = "UpdateGroup")]
+        [Authorize(Roles = "admin")]
         public JSONResult Put(Group group)
         {
             var oldGroup = _authCenterDbContext.Group.AsNoTracking().First(g => g.Id == group.Id);
@@ -216,7 +257,7 @@ namespace AuthCenter.Controllers
 
             if (oldGroup.Name != group.Name)
             {
-                group.ParentChain = group.ParentChain.Replace(oldGroup.Name, group.Name);
+                group.ParentChain = group.ParentChain?.Replace(oldGroup.Name, group.Name);
             }
 
             if (oldGroup.ParentId != group.ParentId)
@@ -228,15 +269,21 @@ namespace AuthCenter.Controllers
                 }
 
                 group.ParentChain = parentNew.ParentChain + $"/{group.Name}";
-                group.TopId = parentNew.TopId == null || parentNew.TopId == 0 ? parentNew.Id : parentNew.TopId;
+                group.TopId = (parentNew.TopId == null || parentNew.TopId == 0) ? parentNew.Id : parentNew.TopId;
+            } else
+            {
+                group.ParentChain = oldGroup.ParentChain;
+                group.TopId = oldGroup.TopId;
             }
 
-            var updated = _authCenterDbContext.Group
-                    .Where(g => g.Id == group.Id).ExecuteUpdate(s =>
-                s.SetProperty(g => g.Name, group.Name)
-                .SetProperty(g => g.DefaultRoles, group.DefaultRoles)
-                .SetProperty(g => g.ParentId, group.ParentId)
-                .SetProperty(g => g.ParentChain, group.ParentChain));
+                var updated = _authCenterDbContext.Group
+                        .Where(g => g.Id == group.Id).ExecuteUpdate(s =>
+                    s.SetProperty(g => g.Name, group.Name)
+                    .SetProperty(g => g.DefaultRoles, group.DefaultRoles)
+                    .SetProperty(g => g.ParentId, group.ParentId)
+                    .SetProperty(g => g.TopId, group.TopId)
+                    .SetProperty(g => g.ParentChain, group.ParentChain)
+                    .SetProperty(g => g.DisplayName, group.DisplayName));
 
             if (updated <= 0)
             {
@@ -245,10 +292,10 @@ namespace AuthCenter.Controllers
 
             if (oldGroup.Name != group.Name || oldGroup.ParentId != group.ParentId)
             {
-                var childList = _authCenterDbContext.Group.Where(g => g.ParentChain.StartsWith(oldGroup.ParentChain)).ToList();
+                var childList = _authCenterDbContext.Group.Where(g => g.ParentChain.StartsWith(oldGroup.ParentChain + '/')).ToList();
                 if (childList.Count != 0)
                 {
-                    foreach(var child in childList)
+                    foreach (var child in childList)
                     {
                         child.ParentChain = group.ParentChain + child.ParentChain.Substring(child.ParentChain.IndexOf(oldGroup.ParentChain) + oldGroup.ParentChain.Length);
                     }
@@ -262,6 +309,7 @@ namespace AuthCenter.Controllers
         }
 
         [HttpDelete(Name = "DeleteGroup")]
+        [Authorize(Roles = "admin")]
         public JSONResult Delete(int id)
         {
             if (_authCenterDbContext.Group.Where(g => g.ParentId == id).FirstOrDefault() != null)
@@ -269,12 +317,12 @@ namespace AuthCenter.Controllers
                 return JSONResult.ResponseError("请先处理子群组");
             }
 
-            if (_authCenterDbContext.User.Where(u=>u.GroupId == id).FirstOrDefault() != null)
+            if (_authCenterDbContext.User.Where(u => u.GroupId == id).FirstOrDefault() != null)
             {
                 return JSONResult.ResponseError("请先处理归属用户");
             }
 
-            _authCenterDbContext.Group.Remove(new() { Id = id, Name = "", DefaultRoles = [] });
+            _authCenterDbContext.Group.Remove(new() { Id = id, Name = "", DisplayName = "", DefaultRoles = [] });
             var deleted = _authCenterDbContext.SaveChanges();
             if (deleted <= 0)
             {

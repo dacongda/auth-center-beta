@@ -12,6 +12,11 @@ namespace AuthCenter.Models
         /// </summary>
         [Required]
         public required string Name { get; set; }
+        ///<summary>
+        ///显示名字
+        /// </summary>
+        [Required]
+        public string DisplayName { get; set; } = "";
         /// <summary>
         /// 默认角色
         /// </summary>
@@ -19,17 +24,16 @@ namespace AuthCenter.Models
         /// <summary>
         /// 上级Id
         /// </summary>
-        public int? ParentId { get; set; }
+        public int ParentId { get; set; } = 0;
         /// <summary>
         /// 上级链
         /// </summary>
-        public string? ParentChain { get; set; }
+        public string ParentChain { get; set; } = "";
         /// <summary>
         /// 根群组Id
         /// </summary>
         public int? TopId { get; set; } = default(int);
         public int? DefaultApplicationId { get; set; }
-        public ICollection<User> Users { get; } = [];
         public Application? DefaultApplication { get; set; }
         [NotMapped]
         public List<Group>? Children { get; set; } = [];

@@ -1,9 +1,7 @@
-﻿using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using System.Runtime.ConstrainedExecution;
 using System.Security.Cryptography.X509Certificates;
 
 namespace AuthCenter.Models
@@ -15,12 +13,12 @@ namespace AuthCenter.Models
         public required string Name { get; set; }
         [Required]
         public required string Type { get; set; }
-        [Required] 
-        public required int BitSize { get;set; }
+        [Required]
+        public required int BitSize { get; set; }
         [Required]
         public required string CryptoAlgorithm { get; set; }
-        [Required] 
-        public required int CryptoSHASize { get;set;}
+        [Required]
+        public required int CryptoSHASize { get; set; }
         public string? Certificate { get; set; }
         public string? PriviteKey { get; set; }
         [NotMapped]
@@ -40,15 +38,16 @@ namespace AuthCenter.Models
          */
         public X509Certificate2 ToX509Certificate2()
         {
-            
+
             var publicCert = X509CertificateLoader.LoadCertificate(Convert.FromBase64String(Certificate ?? ""));
-            var privateCert = X509CertificateLoader.LoadPkcs12(data: Convert.FromBase64String(PriviteKey ?? ""),password: null, keyStorageFlags: X509KeyStorageFlags.DefaultKeySet);
+            var privateCert = X509CertificateLoader.LoadPkcs12(data: Convert.FromBase64String(PriviteKey ?? ""), password: null, keyStorageFlags: X509KeyStorageFlags.DefaultKeySet);
 
 
             if (CryptoAlgorithm == "RSA")
             {
                 publicCert = publicCert.CopyWithPrivateKey(privateCert.GetRSAPrivateKey());
-            } else if (CryptoAlgorithm == "ES")
+            }
+            else if (CryptoAlgorithm == "ES")
             {
                 publicCert = publicCert.CopyWithPrivateKey(privateCert.GetECDsaPrivateKey());
             }
@@ -65,7 +64,8 @@ namespace AuthCenter.Models
             if (CryptoAlgorithm == "RSA")
             {
                 return new X509SecurityKey(x509key);
-            } else
+            }
+            else
             {
                 var ecdsa = x509key.GetECDsaPrivateKey();
                 ecdsa?.ImportSubjectPublicKeyInfo(x509key.PublicKey.ExportSubjectPublicKeyInfo(), out _);

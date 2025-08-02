@@ -1,16 +1,13 @@
 ﻿using AuthCenter.Data;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
-using StackExchange.Redis;
 using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Security.Principal;
 using System.Text;
 using System.Text.Encodings.Web;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace AuthCenter.Handler
 {
@@ -86,7 +83,7 @@ namespace AuthCenter.Handler
 
                 return Task.FromResult(AuthenticateResult.Success(new(principal, BasicSchemeName)));
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 _failReason = "invalid_client";
                 _failReasonDescription = "invalid_client";
@@ -102,7 +99,7 @@ namespace AuthCenter.Handler
                 error_description = _failReasonDescription
             };
 
-            
+
             _httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
             return _httpContext.Response.WriteAsync(JsonConvert.SerializeObject(errorResp));
             //Response.Headers.Append("WWW-Authenticate", $"Bearer error=\"{_failReason}\", error_description=\"{_failReasonDescription ?? ""}\"");

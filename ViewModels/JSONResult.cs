@@ -8,7 +8,7 @@ namespace AuthCenter.ViewModels
         public Object? data { get; set; }
         public string? message { get; set; }
 
-        public static JSONResult ResponseOk(Object data, string message="成功")
+        public static JSONResult ResponseOk(Object data, string message = "成功")
         {
             return new JSONResult
             {
@@ -42,11 +42,11 @@ namespace AuthCenter.ViewModels
             };
         }
 
-        public static JSONResult ResponseError(string message)
+        public static JSONResult ResponseError(string message, int code = -1)
         {
             return new JSONResult
             {
-                code = -1,
+                code = code,
                 message = message,
             };
         }

@@ -54,7 +54,7 @@ namespace AuthCenter.Utils
             return metaXmlDoc;
         }
 
-        public static string GetSAMLResponse(User user, Application application, string url, string frontEndUrl, string redirectUrl,string requestIssuer, string id, string? requestId)
+        public static string GetSAMLResponse(User user, Application application, string url, string frontEndUrl, string redirectUrl, string requestIssuer, string id, string? requestId)
         {
             var curTime = DateTime.UtcNow;
 
@@ -85,7 +85,7 @@ namespace AuthCenter.Utils
                 attributeStatement.Add(GetAttribute("name", user.Name));
             }
 
-            var assertion = 
+            var assertion =
                 new XElement(Saml + "Assertion",
                         new XAttribute("ID", "_" + id),
                         new XAttribute(XNamespace.Xmlns + "xsi", "http://www.w3.org/2001/XMLSchema-instance"),
@@ -130,7 +130,7 @@ namespace AuthCenter.Utils
             ns.AddNamespace("saml", "urn:oasis:names:tc:SAML:2.0:assertion");
             XmlElement xeAssertion = doc.DocumentElement.SelectSingleNode("saml:Assertion", ns) as XmlElement;
 
-            SignedXml signedXml = null;
+            SignedXml? signedXml = null;
             var x509Cert = application.Cert.ToX509Certificate2();
             if (application.Cert.CryptoAlgorithm == "RSA")
             {
@@ -151,7 +151,7 @@ namespace AuthCenter.Utils
 
             Reference reference = new();
 
-            reference.Uri = "#_"+ id;
+            reference.Uri = "#_" + id;
             reference.AddTransform(new XmlDsigEnvelopedSignatureTransform());
             reference.AddTransform(new XmlDsigExcC14NTransform());
 
@@ -195,13 +195,13 @@ namespace AuthCenter.Utils
 
         public class SamlRequest
         {
-            public string? AssertionConsumerServiceURL { get; set; }
-            public string? Destination { get; set; }
-            public string? ID { get; set; }
-            public string? IsPassive { get; set; }
-            public string? IssueInstant { get; set; }
-            public string? ProtocolBinding { get; set; }
-            public string? Issuer { get; set; }
+            public string AssertionConsumerServiceURL { get; set; } = "";
+            public string Destination { get; set; } = "";
+            public string ID { get; set; } = "";
+            public string IsPassive { get; set; } = "";
+            public string IssueInstant { get; set; } = "";
+            public string ProtocolBinding { get; set; } = "";
+            public string Issuer { get; set; } = "";
         }
 
 
@@ -217,23 +217,23 @@ namespace AuthCenter.Utils
             var decodedSamlRequest = Encoding.UTF8.GetString(decodedSamlRequestByte);
 
             XDocument xmlDoc = XDocument.Parse(decodedSamlRequest);
-            var assertionConsumerServiceURL = xmlDoc.Root.Attribute("AssertionConsumerServiceURL");
-            var destination = xmlDoc.Root.Attribute("Destination");
-            var id = xmlDoc.Root.Attribute("ID");
-            var issueInstant = xmlDoc.Root.Attribute("IssueInstant");
-            var protocolBinding = xmlDoc.Root.Attribute("ProtocolBinding");
+            var assertionConsumerServiceURL = xmlDoc.Root?.Attribute("AssertionConsumerServiceURL");
+            var destination = xmlDoc.Root?.Attribute("Destination");
+            var id = xmlDoc.Root?.Attribute("ID");
+            var issueInstant = xmlDoc.Root?.Attribute("IssueInstant");
+            var protocolBinding = xmlDoc.Root?.Attribute("ProtocolBinding");
 
             XNamespace saml2 = "urn:oasis:names:tc:SAML:2.0:assertion";
-            var issuer = xmlDoc.Root.Element(saml2 + "Issuer");
+            var issuer = xmlDoc.Root?.Element(saml2 + "Issuer");
 
             return new SamlRequest
             {
-                AssertionConsumerServiceURL = assertionConsumerServiceURL.Value,
-                Destination = destination.Value,
-                ID = id.Value,
-                IssueInstant = issueInstant.Value,
-                ProtocolBinding = protocolBinding.Value,
-                Issuer = issuer.Value
+                AssertionConsumerServiceURL = assertionConsumerServiceURL?.Value ?? "",
+                Destination = destination?.Value ?? "",
+                ID = id?.Value ?? "",
+                IssueInstant = issueInstant?.Value ?? "",
+                ProtocolBinding = protocolBinding?.Value ?? "",
+                Issuer = issuer?.Value ?? ""
             };
         }
     }

@@ -1,9 +1,7 @@
 ﻿using AuthCenter.Data;
 using AuthCenter.ViewModels;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 
 namespace AuthCenter.Controllers
@@ -60,7 +58,8 @@ namespace AuthCenter.Controllers
             var certs = _authCenterDbContext.Cert.Where(cert => cert.Type == "jwk");
             var jsonWebKeys = new List<JsonWebKey>();
 
-            foreach (var cert in certs) {
+            foreach (var cert in certs)
+            {
                 if (cert.CryptoAlgorithm == "RSA")
                 {
                     jsonWebKeys.Add(JsonWebKeyConverter.ConvertFromX509SecurityKey(new X509SecurityKey(cert.ToX509Certificate2()), true));

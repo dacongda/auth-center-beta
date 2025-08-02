@@ -1,11 +1,14 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace AuthCenter.Models
 {
-    public class ProviderItem {
+    public class ProviderItem
+    {
         public int? Id { get; set; }
-        public string[]? Rule { get; set; }
+        public string? Type { get; set; }
+        public string[] Rule { get; set; } = [];
     }
 
     [Index(nameof(ClientId), IsUnique = true)]
@@ -18,7 +21,7 @@ namespace AuthCenter.Models
         [Required]
         public string? ClientSecret { get; set; }
         [Required]
-        public string[]? Scopes {  get; set; }
+        public string[]? Scopes { get; set; }
         [Required]
         public int CertId { get; set; }
         public int GroupId { get; set; }
@@ -27,8 +30,10 @@ namespace AuthCenter.Models
         public string[]? SamlAudiences { get; set; }
         public bool SamlResponseCompress { get; set; }
         public bool SamlEncrypt { get; set; }
-        public ICollection<ProviderItem>? ProviderItems { get; set; }
+        public List<ProviderItem> ProviderItems { get; set; } = [];
         public Cert? Cert { get; set; }
         public Group? Group { get; set; }
+        [NotMapped]
+        public List<Provider> Providers { get; set; } = [];
     }
 }

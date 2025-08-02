@@ -2,17 +2,11 @@
 using AuthCenter.Handler;
 using AuthCenter.Models;
 using AuthCenter.Utils;
-using AuthCenter.ViewModels;
-using JWT;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Distributed;
-using Microsoft.VisualStudio.Web.CodeGenerators.Mvc.Templates.BlazorIdentity.Pages;
 using Newtonsoft.Json;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace AuthCenter.Controllers
 {
@@ -24,7 +18,7 @@ namespace AuthCenter.Controllers
         private readonly IDistributedCache _cache = cache;
         private readonly AuthCenterDbContext _authCenterDbContext = authCenterDbContext;
 
-        [HttpPost("token", Name ="oauth token")]
+        [HttpPost("token", Name = "oauth token")]
         [Authorize(AuthenticationSchemes = BasicAuthorizationHandler.BasicSchemeName, Roles = "app")]
         public IActionResult Token(string code, string? grant_type, string? redirect_uri, string? scopes)
         {
@@ -35,7 +29,7 @@ namespace AuthCenter.Controllers
                 return Json(new
                 {
                     error = "invalid_grant",
-                    error_description =  "application not found"
+                    error_description = "application not found"
                 });
             }
 
@@ -51,7 +45,7 @@ namespace AuthCenter.Controllers
             }
 
             var loginInfo = new { nonce = "", state = "", user = new User { Name = "", Number = "" }, redirect_uri = "" };
-            var parsedLoginInfo = JsonConvert.DeserializeAnonymousType(jwtInfos, loginInfo, new JsonSerializerSettings { MissingMemberHandling=MissingMemberHandling.Ignore});
+            var parsedLoginInfo = JsonConvert.DeserializeAnonymousType(jwtInfos, loginInfo, new JsonSerializerSettings { MissingMemberHandling = MissingMemberHandling.Ignore });
 
             if (parsedLoginInfo == null)
             {

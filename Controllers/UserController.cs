@@ -1,24 +1,17 @@
-﻿using AuthCenter.Data;
+﻿using AuthCenter.Captcha;
+using AuthCenter.Data;
 using AuthCenter.Handler;
 using AuthCenter.Models;
 using AuthCenter.Utils;
 using AuthCenter.ViewModels;
-using JWT.Builder;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.Extensions.Caching.Distributed;
-using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
-using System.Collections;
-using System.IdentityModel.Tokens.Jwt;
-using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection.Metadata;
-using System.Security.Claims;
-using System.Text;
 using System.Text.Json;
 
 namespace AuthCenter.Controllers
@@ -52,7 +45,7 @@ namespace AuthCenter.Controllers
                 .Select(user => new { user.Id, user.Number, user.Email, user.Name, user.Phone, user.GroupId, groupName = user.Group.Name });
             if (parentChain != null)
             {
-                var groupIds = (from g in _authCenterDbContext.Group where g.ParentChain.StartsWith(parentChain) select g.Id).ToList();
+                var groupIds = (from g in _authCenterDbContext.Group where g.ParentChain.StartsWith(parentChain + '/') || g.ParentChain == parentChain select g.Id).ToList();
                 countQuery = countQuery.Where(u => groupIds.Contains(u.Id));
                 query = query.Where(u => groupIds.Contains(u.GroupId ?? 0));
             }
@@ -62,7 +55,7 @@ namespace AuthCenter.Controllers
             return JSONResult.ResponseList(list, count);
         }
 
-        [HttpGet(Name ="GetUser")]
+        [HttpGet(Name = "GetUser")]
         [Authorize(Roles = "admin")]
         public JSONResult Get(int id)
         {
@@ -84,7 +77,6 @@ namespace AuthCenter.Controllers
             user.Password = BCrypt.Net.BCrypt.HashPassword(user.Password);
 
             var state = _authCenterDbContext.User.Upsert(user).On(c => c.Number).Run();
-            //_authCenterDbContext.SaveChanges();
 
             return JSONResult.ResponseOk("成功");
         }
@@ -98,15 +90,21 @@ namespace AuthCenter.Controllers
                 return JSONResult.ResponseError("无权修改");
             }
 
+            Expression<Func<SetPropertyCalls<User>, SetPropertyCalls<User>>> setPropertyCalls =
+                b => b.SetProperty(u => u.Name, user.Name);
 
-            _authCenterDbContext.User.Where(u => u.Number == user.Number).ExecuteUpdate(
-                s => s.SetProperty(u => u.Number, user.Number)
-                .SetProperty(u => u.Roles, user.Roles)
-                .SetProperty(u => u.Email, user.Email)
-                .SetProperty(u => u.Phone, user.Phone)
-                .SetProperty(u => u.GroupId, user.GroupId)
-                .SetProperty(u => u.Name, user.Name)
-                );
+            if (user.IsAdmin)
+            {
+                setPropertyCalls = setPropertyCalls.Append(s =>
+                        s.SetProperty(u => u.Number, user.Number)
+                        .SetProperty(u => u.Roles, user.Roles)
+                        .SetProperty(u => u.Email, user.Email)
+                        .SetProperty(u => u.Phone, user.Phone)
+                        .SetProperty(u => u.GroupId, user.GroupId)
+                        .SetProperty(u => u.IsAdmin, user.IsAdmin));
+            }
+
+            _authCenterDbContext.User.Where(u => u.Number == user.Number).ExecuteUpdate(setPropertyCalls);
 
             return JSONResult.ResponseOk("成功");
         }
@@ -129,160 +127,39 @@ namespace AuthCenter.Controllers
             return JSONResult.ResponseOk("成功");
         }
 
-        [HttpPost("login", Name = "Login")]
-        public JSONResult Login(LoginUser loginUser)
+        [HttpGet("myInfo", Name = "GetMyInfo")]
+        [Authorize(Roles = "admin,user")]
+        public JSONResult GetMyInfo()
         {
-            //var loginType = Request.Query["type"];
-            var responseType = Request.Query["response_type"];
-
-            var user = _authCenterDbContext.User.Where(u => u.Number == loginUser.Name).Include(p => p.Group).First();
+            if (User.Identity == null)
+            {
+                Response.StatusCode = 401;
+                return JSONResult.ResponseError("用户信息无效");
+            }
+            var user = _authCenterDbContext.User.Where(u => u.Number == User.Identity.Name).Include(p => p.Group).FirstOrDefault();
             if (user == null)
             {
-                return JSONResult.ResponseError("无此用户");
+                Response.StatusCode = 401;
+                return JSONResult.ResponseError("用户无效");
             }
-
-            try
-            {
-                if (!BCrypt.Net.BCrypt.Verify(loginUser.Password, user.Password))
-                {
-                    return JSONResult.ResponseError("密码错误");
-                }
-            }
-            catch
-            {
-                return JSONResult.ResponseError("密码错误");
-            }
-
             if (user.Group != null)
             {
                 var parentGroupNames = user.Group.Name.Split('/');
-                var groupChainRoleList = _authCenterDbContext.Group.Where(u => parentGroupNames.Contains(u.Name)).Select(u => u.DefaultRoles).ToArray();
+                var groupChainRoleList = _authCenterDbContext.Group
+                    .Where(u => parentGroupNames.Contains(u.Name))
+                    .Select(u => u.DefaultRoles).AsNoTracking().ToArray();
                 foreach (var groupChainRole in groupChainRoleList)
                 {
                     user.Roles = [.. user.Roles.Union(groupChainRole)];
                 }
             }
 
-            var request = _httpContextAccessor.HttpContext.Request;
+            user.Password = "";
+            user.Group = null;
+            user.TotpSecret = "";
 
-            var url = request.Scheme + "://" + request.Host.Value;
-            var frontEndUrl = _configuration["FrontEndUrl"] ?? "";
-            if (frontEndUrl == null || frontEndUrl == "")
-            {
-                frontEndUrl = url;
-            }
-
-            string[] oauthType = ["code", "code id_token", "id_token", "id_token token", "code id_token token"];
-
-            // 登陆系统管理页
-            if (responseType == "login")
-            {
-                var tokenString = user.Id.ToString() + ":" + Guid.NewGuid().ToString();
-
-                _cache.SetString(tokenString, JsonSerializer.Serialize(user), new DistributedCacheEntryOptions
-                {
-                    AbsoluteExpirationRelativeToNow = TimeSpan.FromDays(7)
-                });
-
-                return JSONResult.ResponseOk(
-                    new LoginResult()
-                    {
-                        AccessToken = tokenString
-                    });
-            }
-            else if (Array.IndexOf(oauthType, responseType) != -1)
-            {
-                // 使用oidc code登陆
-                var clientId = Request.Query["client_id"];
-                var redirectUrl = Request.Query["redirect_uri"];
-                var scope = Request.Query["scope"];
-                var state = Request.Query["state"].ToString();
-                var nonce = Request.Query["nonce"].ToString();
-
-                var curApplication = _authCenterDbContext.Application.Where(app => app.ClientId == clientId.ToString()).First();
-                if (curApplication == null)
-                {
-                    return JSONResult.ResponseError("应用不存在");
-                }
-
-                var parsedRedirectUrl = new Uri(redirectUrl.ToString());
-
-                var targetRedirect = curApplication.RedirectUrls?
-                    .Where(allowedUrl => (new Uri(allowedUrl)).Host == parsedRedirectUrl.Host)
-                    .First();
-                if (targetRedirect == null)
-                {
-                    return JSONResult.ResponseError("目标地址不在许可地址内");
-                }
-
-                Dictionary<string, string> dict = new();
-                if (responseType.Contains("code")) { 
-                    var code = Guid.NewGuid().ToString();
-                    code = Base64UrlEncoder.Encode(code);
-
-                    _cache.SetString(code, JsonSerializer.Serialize(new
-                    {
-                        nonce,
-                        state,
-                        user,
-                    }), new DistributedCacheEntryOptions
-                    {
-                        AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(120),
-                    });
-
-                    dict["code"] = code;
-                }
-
-                if (responseType.Contains("id_token") || responseType.Contains("token"))
-                {
-                    var tokenPack = TokenUtil.GenerateCodeToken(curApplication.Cert, user, curApplication, url, scope, nonce);
-                    if(responseType.Contains("id_token"))
-                    {
-                        dict["id_token"] = tokenPack.IdToken;
-                    }
-
-                    if (responseType.Contains("token"))
-                    {
-                        dict["token"] = tokenPack.AccessToken;
-                    }
-                }
-
-                return JSONResult.ResponseOk(dict);
-            } else if (responseType == "saml")
-            {
-                var rawSamlRequest = Request.Query["SAMLRequest"];
-                var clientId = Request.Query["client_id"];
-
-                var samlRequest = Utils.SamlUtil.ParseSamlRequest(rawSamlRequest);
-
-                var curApplication = _authCenterDbContext.Application.Where(app => app.ClientId == clientId.ToString()).Include(app => app.Cert).First();
-                if (curApplication == null)
-                {
-                    return JSONResult.ResponseError("应用不存在");
-                }
-
-                var redirectUri = new Uri(samlRequest.AssertionConsumerServiceURL);
-
-                var targetRedirect = curApplication.RedirectUrls?
-                    .Where(allowedUrl => (new Uri(allowedUrl)).Host == redirectUri.Host)
-                    .First();
-                if (targetRedirect == null)
-                {
-                    return JSONResult.ResponseError("目标地址不在许可地址内");
-                }
-
-                var respId = Guid.NewGuid().ToString("N");
-                var samlResponse = Utils.SamlUtil.GetSAMLResponse(user, curApplication, url, frontEndUrl, samlRequest.AssertionConsumerServiceURL, samlRequest.Issuer, respId, samlRequest.ID);
-                return JSONResult.ResponseOk(new
-                {
-                    samlResponse = samlResponse,
-                    samlBindingType = samlRequest.ProtocolBinding,
-                    redirectUrl = samlRequest.AssertionConsumerServiceURL
-                });
-            }
-
-            return JSONResult.ResponseError("登陆类型错误");
-        } 
+            return JSONResult.ResponseOk(user);
+        }
 
         [HttpGet("info", Name = "user-info")]
         [Authorize(Roles = "admin,user")]
@@ -290,21 +167,23 @@ namespace AuthCenter.Controllers
         {
             if (User.Identity == null)
             {
+                Response.StatusCode = 401;
                 return JSONResult.ResponseError("用户信息无效");
             }
-            var user = _authCenterDbContext.User.Where(u => u.Number == User.Identity.Name).Include(p => p.Group).First();
-            IEnumerable<string> roles = user.Roles;
-            if (user.Group != null)
+            var user = _authCenterDbContext.User.Where(u => u.Number == User.Identity.Name).Include(p => p.Group).FirstOrDefault();
+            if (user == null)
             {
-                user.Roles = user.Roles.Union(user.Group.DefaultRoles).ToArray();
+                Response.StatusCode = 401;
+                return JSONResult.ResponseError("用户无效");
             }
 
             return JSONResult.ResponseOk(new
             {
                 realName = user.Name,
-                roles = user.Roles,
+                roles = new List<string>() { user.IsAdmin ? "admin" : "user" },
                 userId = user.Number,
                 username = user.Name,
+                id = user.Id
             });
         }
 

@@ -2,7 +2,6 @@
 using AuthCenter.Models;
 using AuthCenter.ViewModels;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AuthCenter.Controllers
@@ -13,15 +12,15 @@ namespace AuthCenter.Controllers
     public class ApplicationController(AuthCenterDbContext authCenterDbContext) : Controller
     {
         private readonly AuthCenterDbContext _authCenterDbContext = authCenterDbContext;
-        [HttpGet("list", Name = "list")]
+        [HttpGet("list", Name = "ListApplication")]
         public JSONResult List(int page, int pageSize)
         {
-            var appList = _authCenterDbContext.Application.Select(app => new {app.Id, app.Name, app.ClientId}).Skip((page - 1) * pageSize).Take(pageSize).ToList();
+            var appList = _authCenterDbContext.Application.Select(app => new { app.Id, app.Name, app.ClientId }).Skip((page - 1) * pageSize).Take(pageSize).ToList();
             var count = _authCenterDbContext.Application.Count();
             return JSONResult.ResponseList(appList, count);
         }
 
-        [HttpGet(Name = "getApplication")]
+        [HttpGet(Name = "GetApplication")]
         public JSONResult Get(int id)
         {
             var app = _authCenterDbContext.Application.Where(app => app.Id == id).First();
@@ -33,7 +32,7 @@ namespace AuthCenter.Controllers
             return JSONResult.ResponseOk(app);
         }
 
-        [HttpPost(Name = "addApp")]
+        [HttpPost(Name = "AddApp")]
         public JSONResult Add(Application application)
         {
 
@@ -42,7 +41,7 @@ namespace AuthCenter.Controllers
             return JSONResult.ResponseOk();
         }
 
-        [HttpPut(Name = "upadteApp")]
+        [HttpPut(Name = "UpadteApp")]
         public JSONResult Upadte(Application application)
         {
 
@@ -52,7 +51,7 @@ namespace AuthCenter.Controllers
             return JSONResult.ResponseOk();
         }
 
-        [HttpDelete(Name = "deleteApp")]
+        [HttpDelete(Name = "DeleteApp")]
         public JSONResult Delete(int id)
         {
             _authCenterDbContext.Remove(new Application { Id = id });

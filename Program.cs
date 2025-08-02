@@ -1,13 +1,11 @@
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using AuthCenter.Data;
 using AuthCenter.Handler;
-using System.Diagnostics;
 using AuthCenter.ViewModels;
-using AuthCenter.Models;
-using AuthCenter.Utils;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using System.Diagnostics;
 var builder = WebApplication.CreateBuilder(args);
+
 builder.Services.AddDbContext<AuthCenterDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("UserContext") ?? throw new InvalidOperationException("Connection string 'UserContext' not found."))
     .UseSnakeCaseNamingConvention());
@@ -36,7 +34,10 @@ builder.Services.AddControllers().ConfigureApiBehaviorOptions(options =>
 
         return new JsonResult(JSONResult.ResponseError(error.Title?.ToString() ?? ""));
     };
-}).AddXmlDataContractSerializerFormatters();
+}).AddXmlDataContractSerializerFormatters().AddJsonOptions(options=>
+{
+    options.JsonSerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
+});
 
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle

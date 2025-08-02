@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AuthCenter.Migrations
 {
     [DbContext(typeof(AuthCenterDbContext))]
-    [Migration("20250722160709_2025-7-23-1")]
-    partial class _20257231
+    [Migration("20250802143521_2025-8-2-2")]
+    partial class _2025822
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -56,6 +56,10 @@ namespace AuthCenter.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("expired_second");
 
+                    b.Property<int>("GroupId")
+                        .HasColumnType("integer")
+                        .HasColumnName("group_id");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text")
@@ -95,6 +99,9 @@ namespace AuthCenter.Migrations
                     b.HasIndex("ClientId")
                         .IsUnique()
                         .HasDatabaseName("ix_application_client_id");
+
+                    b.HasIndex("GroupId")
+                        .HasDatabaseName("ix_application_group_id");
 
                     b.ToTable("application", (string)null);
                 });
@@ -170,10 +177,19 @@ namespace AuthCenter.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<int?>("DefaultApplicationId")
+                        .HasColumnType("integer")
+                        .HasColumnName("default_application_id");
+
                     b.PrimitiveCollection<string[]>("DefaultRoles")
                         .IsRequired()
                         .HasColumnType("text[]")
                         .HasColumnName("default_roles");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("display_name");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -181,10 +197,11 @@ namespace AuthCenter.Migrations
                         .HasColumnName("name");
 
                     b.Property<string>("ParentChain")
+                        .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("parent_chain");
 
-                    b.Property<int?>("ParentId")
+                    b.Property<int>("ParentId")
                         .HasColumnType("integer")
                         .HasColumnName("parent_id");
 
@@ -198,6 +215,10 @@ namespace AuthCenter.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_group");
+
+                    b.HasIndex("DefaultApplicationId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_group_default_application_id");
 
                     b.HasIndex("Name")
                         .IsUnique()
@@ -313,9 +334,25 @@ namespace AuthCenter.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("email_verified");
 
+                    b.Property<bool>("EnableEmailMfa")
+                        .HasColumnType("boolean")
+                        .HasColumnName("enable_email_mfa");
+
+                    b.Property<bool>("EnablePhoneMfa")
+                        .HasColumnType("boolean")
+                        .HasColumnName("enable_phone_mfa");
+
+                    b.Property<bool>("EnableTotpMfa")
+                        .HasColumnType("boolean")
+                        .HasColumnName("enable_totp_mfa");
+
                     b.Property<int?>("GroupId")
                         .HasColumnType("integer")
                         .HasColumnName("group_id");
+
+                    b.Property<bool>("IsAdmin")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_admin");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -339,10 +376,25 @@ namespace AuthCenter.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("phone_verified");
 
+                    b.Property<string>("PreferedMfaType")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("prefered_mfa_type");
+
+                    b.Property<string>("RecoveryCode")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("recovery_code");
+
                     b.PrimitiveCollection<string[]>("Roles")
                         .IsRequired()
                         .HasColumnType("text[]")
                         .HasColumnName("roles");
+
+                    b.Property<string>("TotpSecret")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("totp_secret");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -359,18 +411,77 @@ namespace AuthCenter.Migrations
                         .HasDatabaseName("ix_user_number");
 
                     b.ToTable("user", (string)null);
+                });
 
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            EmailVerified = false,
-                            Name = "admin",
-                            Number = "admin",
-                            Password = "$2a$11$9.tkv.EXpsA02Pe.wOOmReXLZ3vabZeOV3Z1JPIDGTvsWtghy6pxG",
-                            PhoneVerified = false,
-                            Roles = new[] { "admin" }
-                        });
+            modelBuilder.Entity("AuthCenter.Models.WebAuthnCredential", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AaGuid")
+                        .HasColumnType("uuid")
+                        .HasColumnName("aa_guid");
+
+                    b.Property<byte[]>("AttestationClientDataJson")
+                        .HasColumnType("bytea")
+                        .HasColumnName("attestation_client_data_json");
+
+                    b.Property<byte[]>("AttestationObject")
+                        .HasColumnType("bytea")
+                        .HasColumnName("attestation_object");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<bool>("IsBackedUp")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_backed_up");
+
+                    b.Property<bool>("IsBackupEligible")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_backup_eligible");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<byte[]>("PublicKey")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("public_key");
+
+                    b.Property<DateTimeOffset>("RegDate")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reg_date");
+
+                    b.Property<long>("SignCount")
+                        .HasColumnType("bigint")
+                        .HasColumnName("sign_count");
+
+                    b.PrimitiveCollection<int[]>("Transports")
+                        .IsRequired()
+                        .HasColumnType("integer[]")
+                        .HasColumnName("transports");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_web_authn_credential");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_web_authn_credential_user_id");
+
+                    b.ToTable("web_authn_credential", (string)null);
                 });
 
             modelBuilder.Entity("AuthCenter.Models.Application", b =>
@@ -380,35 +491,53 @@ namespace AuthCenter.Migrations
                         .HasForeignKey("CertId")
                         .HasConstraintName("fk_application_cert_cert_id");
 
+                    b.HasOne("AuthCenter.Models.Group", "Group")
+                        .WithMany()
+                        .HasForeignKey("GroupId")
+                        .HasConstraintName("fk_application_group_group_id");
+
                     b.OwnsMany("AuthCenter.Models.ProviderItem", "ProviderItems", b1 =>
                         {
-                            b1.Property<int>("ApplicationId")
+                            b1.Property<int>("Id")
                                 .HasColumnType("integer");
 
                             b1.Property<int>("__synthesizedOrdinal")
                                 .ValueGeneratedOnAdd()
                                 .HasColumnType("integer");
 
-                            b1.Property<int?>("Id")
-                                .HasColumnType("integer");
-
                             b1.PrimitiveCollection<string[]>("Rule")
+                                .IsRequired()
                                 .HasColumnType("text[]");
 
-                            b1.HasKey("ApplicationId", "__synthesizedOrdinal");
+                            b1.Property<string>("Type")
+                                .HasColumnType("text");
+
+                            b1.HasKey("Id", "__synthesizedOrdinal");
 
                             b1.ToTable("application");
 
                             b1.ToJson("provider_items");
 
                             b1.WithOwner()
-                                .HasForeignKey("ApplicationId")
-                                .HasConstraintName("fk_application_application_application_id");
+                                .HasForeignKey("Id")
+                                .HasConstraintName("fk_application_application_id");
                         });
 
                     b.Navigation("Cert");
 
+                    b.Navigation("Group");
+
                     b.Navigation("ProviderItems");
+                });
+
+            modelBuilder.Entity("AuthCenter.Models.Group", b =>
+                {
+                    b.HasOne("AuthCenter.Models.Application", "DefaultApplication")
+                        .WithOne()
+                        .HasForeignKey("AuthCenter.Models.Group", "DefaultApplicationId")
+                        .HasConstraintName("fk_group_application_default_application_id");
+
+                    b.Navigation("DefaultApplication");
                 });
 
             modelBuilder.Entity("AuthCenter.Models.User", b =>

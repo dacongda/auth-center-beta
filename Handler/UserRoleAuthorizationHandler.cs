@@ -1,17 +1,13 @@
-﻿using AuthCenter.Models;
-using JWT;
+﻿using AuthCenter.Data;
+using AuthCenter.Models;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Options;
-using System.Configuration;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.AccessControl;
 using System.Security.Claims;
 using System.Security.Principal;
 using System.Text.Encodings.Web;
 using System.Text.Json;
-using System.Xml.Linq;
-using System.Linq;
 
 namespace AuthCenter.Handler
 {
@@ -19,10 +15,16 @@ namespace AuthCenter.Handler
     {
 
         private readonly IDistributedCache _cache;
+        private readonly AuthCenterDbContext _authCenterDbContext;
+        private readonly HttpContext _httpContext;
 
-        public UserRoleAuthorizationHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder, IDistributedCache cache) : base(options, logger, encoder)
+        private int _failCode = StatusCodes.Status403Forbidden;
+
+        public UserRoleAuthorizationHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder, IDistributedCache cache, AuthCenterDbContext authCenterDbContext, IHttpContextAccessor httpContextAccessor) : base(options, logger, encoder)
         {
             _cache = cache;
+            _authCenterDbContext = authCenterDbContext;
+            _httpContext = httpContextAccessor.HttpContext;
         }
 
         public const string UserRoleSchemeName = "UserRoleAuthorization";
@@ -33,36 +35,49 @@ namespace AuthCenter.Handler
 
             if (string.IsNullOrEmpty(token))
             {
-                return Task.FromResult(AuthenticateResult.NoResult());
-            }
-
-            string userStr = _cache.GetString(token) ?? "";
-            if (string.IsNullOrEmpty(userStr)) {
+                _failCode = StatusCodes.Status401Unauthorized;
                 return Task.FromResult(AuthenticateResult.Fail("token不能为空"));
             }
 
-            
-            User? user = JsonSerializer.Deserialize<User>(userStr);
-
-
-            if (user != null)
+            string userStr = _cache.GetString(token) ?? "";
+            if (string.IsNullOrEmpty(userStr))
             {
-                var gi = new GenericIdentity(user.Number);
-                var principal = new ClaimsPrincipal();
-
-                var claimList = new List<Claim>();
-
-                if (user.Roles != null) {
-                    claimList.AddRange(from role in user.Roles select new Claim( ClaimTypes.Role, role));
-                }
-                claimList.Add(new(ClaimTypes.Name, user.Name));
-
-                principal.AddIdentity(new(gi,claimList));
-
-                return Task.FromResult(AuthenticateResult.Success(new (principal, UserRoleSchemeName)));
+                _failCode = StatusCodes.Status401Unauthorized;
+                return Task.FromResult(AuthenticateResult.Fail("token不能为空"));
             }
 
-            return Task.FromResult(AuthenticateResult.Fail("token错误"));
+
+            User? user = JsonSerializer.Deserialize<User>(userStr);
+            var dbUser = _authCenterDbContext.User.Find(user?.Id);
+
+            if (dbUser is null)
+            {
+                _failCode = StatusCodes.Status401Unauthorized;
+                return Task.FromResult(AuthenticateResult.Fail("token错误"));
+            }
+
+            dbUser.loginApplication = user.loginApplication;
+
+            var gi = new GenericIdentity(dbUser.Number);
+            var principal = new ClaimsPrincipal();
+
+            var claimList = new List<Claim>();
+
+            if (dbUser.IsAdmin)
+            {
+                claimList.Add(new(ClaimTypes.Role, "admin"));
+            }
+            else
+            {
+                claimList.Add(new(ClaimTypes.Role, "user"));
+            }
+            claimList.Add(new(ClaimTypes.Name, dbUser.Name));
+
+            principal.AddIdentity(new(gi, claimList));
+
+            _httpContext.Items["user"] = dbUser;
+
+            return Task.FromResult(AuthenticateResult.Success(new(principal, UserRoleSchemeName)));
         }
 
         protected override Task HandleChallengeAsync(AuthenticationProperties properties)
@@ -74,7 +89,8 @@ namespace AuthCenter.Handler
         protected override Task HandleForbiddenAsync(AuthenticationProperties properties)
         {
             var res = base.HandleForbiddenAsync(properties);
-            return base.HandleForbiddenAsync(properties);
+            Response.StatusCode = _failCode;
+            return res;
         }
     }
 }
