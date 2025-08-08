@@ -5,6 +5,7 @@ using AuthCenter.Models;
 using AuthCenter.Utils;
 using AuthCenter.ViewModels;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Query;
@@ -109,6 +110,79 @@ namespace AuthCenter.Controllers
             return JSONResult.ResponseOk("成功");
         }
 
+        [HttpPost("updateSafeInfo", Name = "UpdateSafeInfo")]
+        public async Task<JSONResult> UpdateSafeInfo(ModifySafeInfoRequest request)
+        {
+            var userId = await _cache.GetStringAsync($"Auth:Verify:{request.Type}:{request.VerifyCode}");
+            if (userId != User.Identity.Name)
+            {
+                return JSONResult.ResponseError("认证失效");
+            }
+
+            var curUser = HttpContext.Items["user"] as User;
+
+            var app = await _authCenterDbContext.Application.FindAsync(curUser.loginApplication);
+            var providerItem = (from pItem in app.ProviderItems where pItem.Type == request.Type select pItem).FirstOrDefault();
+
+            if (app == null)
+            {
+                return JSONResult.ResponseError("认证失效");
+            }
+
+            if (request.Type == "Email")
+            {
+                if (providerItem is not null)
+                {
+                    var secret = await _cache.GetStringAsync($"verification:email:{request.CodeId}");
+                    if (String.IsNullOrEmpty(secret))
+                    {
+                        return JSONResult.ResponseError("认证失效");
+                    }
+
+                    var res = secret.Split(':');
+                    var validTime = Convert.ToInt32(res[1]);
+                    var code = res[0];
+                    if (Convert.ToInt32(validTime) == 0)
+                    {
+                        await _cache.RemoveAsync($"verification:email:{request.CodeId}");
+                        return JSONResult.ResponseError("验证码失效");
+                    }
+
+
+                    if (code != request.Code)
+                    {
+                        await _cache.SetStringAsync($"verification:email:{request.CodeId}", $"{code}:{validTime - 1}", new DistributedCacheEntryOptions
+                        {
+                            AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(300),
+                        });
+                        return JSONResult.ResponseError("认证失效");
+                    }
+                }
+
+                _authCenterDbContext.User.Where(u => u.Number == curUser.Number).ExecuteUpdate(s => s.SetProperty(u => u.Email , request.Email).SetProperty(u=> u.EmailVerified, true));
+                return JSONResult.ResponseOk();
+            }
+            else if (request.Type == "Phone")
+            {
+                if (providerItem is not null)
+                {
+                    // TODO: realize phone verification
+                    return JSONResult.ResponseError("尚未实现");
+                }
+
+                _authCenterDbContext.User.Where(u => u.Number == curUser.Number).ExecuteUpdate(s => s.SetProperty(u => u.Phone, request.Phone).SetProperty(u => u.PhoneVerified, true));
+                return JSONResult.ResponseOk();
+            }
+            else if (request.Type == "Password")
+            {
+                var encryptedPassword = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+                _authCenterDbContext.User.Where(u => u.Number == curUser.Number).ExecuteUpdate(s => s.SetProperty(u => u.Password, encryptedPassword));
+                return JSONResult.ResponseOk();
+            }
+
+            return JSONResult.ResponseError("未知类型");
+        }
+
         [HttpDelete(Name = "DeleteUser")]
         [Authorize(Roles = "admin")]
         public JSONResult Delete(int id)
@@ -170,11 +244,12 @@ namespace AuthCenter.Controllers
                 Response.StatusCode = 401;
                 return JSONResult.ResponseError("用户信息无效");
             }
-            var user = _authCenterDbContext.User.Where(u => u.Number == User.Identity.Name).Include(p => p.Group).FirstOrDefault();
-            if (user == null)
+            var user = HttpContext.Items["user"] as User;
+            var application = _authCenterDbContext.Application.Find(user.loginApplication);
+            if (application == null)
             {
                 Response.StatusCode = 401;
-                return JSONResult.ResponseError("用户无效");
+                return JSONResult.ResponseError("用户信息无效");
             }
 
             return JSONResult.ResponseOk(new
@@ -183,7 +258,8 @@ namespace AuthCenter.Controllers
                 roles = new List<string>() { user.IsAdmin ? "admin" : "user" },
                 userId = user.Number,
                 username = user.Name,
-                id = user.Id
+                id = user.Id,
+                loginApplication = application.getMaskedApplication()
             });
         }
 

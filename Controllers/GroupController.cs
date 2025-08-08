@@ -197,7 +197,7 @@ namespace AuthCenter.Controllers
             }
 
             var app = group.DefaultApplication;
-            var appProviderItems = (from pItem in app.ProviderItems where pItem.Type == "Captcha" || pItem.Type == "OAuth" select pItem.Id).ToList();
+            var appProviderItems = (from pItem in app.ProviderItems where pItem.Type == "Captcha" || pItem.Type == "OAuth" select pItem.ProviderId).ToList();
             if (appProviderItems.Any())
             {
                 group.DefaultApplication.Providers = [.. _authCenterDbContext.Provider.Where(p => appProviderItems.Contains(p.Id))];

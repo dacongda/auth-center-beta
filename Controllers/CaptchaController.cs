@@ -36,7 +36,7 @@ namespace AuthCenter.Controllers
                 return JSONResult.ResponseError("应用无验证码提供商");
             }
 
-            var captchaProvider = _authCenterDbContext.Provider.Find(captchaItem.Id);
+            var captchaProvider = _authCenterDbContext.Provider.Find(captchaItem.ProviderId);
             if (captchaProvider == null)
             {
                 return JSONResult.ResponseError("应用无验证码提供商");

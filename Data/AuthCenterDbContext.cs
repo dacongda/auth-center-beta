@@ -86,7 +86,7 @@ namespace AuthCenter.Data
                 .OwnsMany(e => e.ProviderItems, builder =>
                 {
                     builder.ToJson();
-                    builder.WithOwner().HasForeignKey(f => f.Id);
+                    builder.WithOwner().HasForeignKey(f=>f.FakeId);
                 });
 
             base.OnModelCreating(modelBuilder);

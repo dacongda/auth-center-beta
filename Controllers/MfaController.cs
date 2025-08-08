@@ -60,25 +60,37 @@ namespace AuthCenter.Controllers
                     return JSONResult.ResponseError("认证失效");
                 }
 
-                var mailProviderItem = (from pItem in app.ProviderItems where pItem.Type == "Mail" select pItem).FirstOrDefault();
+                var mailProviderItem = (from pItem in app.ProviderItems where pItem.Type == "Email" select pItem).FirstOrDefault();
                 if (mailProviderItem is null)
                 {
                     return JSONResult.ResponseError("无邮件提供商");
                 }
 
-                var provider = await _authCenterDbContext.Provider.FindAsync(mailProviderItem.Id);
+                var provider = await _authCenterDbContext.Provider.FindAsync(mailProviderItem.ProviderId);
                 if (provider == null)
                 {
                     return JSONResult.ResponseError("无邮件提供商");
                 }
 
+                var sended = await _cache.GetStringAsync($"verification:code:{curUser.Email}");
+                if( sended == "1")
+                {
+                    return JSONResult.ResponseError("未过冷却期");
+                }
+
                 var body = provider.Body.Replace("%code%", code);
                 Utils.EmailUtils.SendEmail(provider.ConfigureUrl, provider.Port.Value, provider.EnableSSL.Value, provider.ClientId, provider.ClientSecret, curUser.Email, provider.Subject, body);
+                await _cache.SetStringAsync($"verification:code:{curUser.Email}", "1", new DistributedCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(60),
+                });
 
-                await _cache.SetStringAsync("mfa:enable:" + mfaEnableId, code, new DistributedCacheEntryOptions
+                await _cache.SetStringAsync("mfa:enable:" + mfaEnableId, $"{code}:{3}", new DistributedCacheEntryOptions
                 {
                     AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(300),
                 });
+
+                return JSONResult.ResponseOk(new { mfaEnableId });
             }
 
             return JSONResult.ResponseError("并未实现");
@@ -88,7 +100,11 @@ namespace AuthCenter.Controllers
         public async Task<JSONResult> EnableMfaVerify(WebAuthnRequest<string> request)
         {
             var user = HttpContext.Items["user"] as User;
-            var secret = await _cache.GetStringAsync("mfa:enable:" + request.CacheOptionId);
+            if (user is null)
+            {
+                return JSONResult.ResponseError("用户获取失败");
+            }
+            var secret = await _cache.GetStringAsync($"mfa:enable:{request.CacheOptionId}");
             if (String.IsNullOrEmpty(secret))
             {
                 return JSONResult.ResponseError("认证失效");
@@ -110,10 +126,25 @@ namespace AuthCenter.Controllers
             }
             else if (request.AuthType == "Email")
             {
-                if(secret != request.RequestValue)
+                var res = secret.Split(':');
+                var validTime = Convert.ToInt32(res[1]);
+                var code = res[0];
+                if (Convert.ToInt32(validTime) == 0)
                 {
+                    await _cache.RemoveAsync($"mfa:enable:{request.CacheOptionId}");
+                    return JSONResult.ResponseError("验证码失效");
+                }
+                
+
+                if(code != request.RequestValue)
+                {
+                    await _cache.SetStringAsync($"mfa:enable:{request.CacheOptionId}", $"{code}:{validTime-1}", new DistributedCacheEntryOptions
+                    {
+                        AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(300),
+                    });
                     return JSONResult.ResponseError("认证失效");
                 }
+                user.EnableEmailMfa = true;
             }
 
             var recoveryCode = "";
@@ -143,6 +174,51 @@ namespace AuthCenter.Controllers
             {
                 recoveryCode,
             });
+        }
+
+        [HttpPost("disableMfaVerify", Name = "DisableMfaVerify")]
+        public async Task<JSONResult> DisableMfaVerify(WebAuthnRequest<string> request)
+        {
+            var user = HttpContext.Items["user"] as User;
+            if (user is null)
+            {
+                return JSONResult.ResponseError("用户获取失败");
+            }
+
+            var userId = await _cache.GetStringAsync($"Auth:Verify:MFA:{request.CacheOptionId}");
+            if (userId != User.Identity.Name)
+            {
+                return JSONResult.ResponseError("认证失效");
+            }
+            
+            if (request.AuthType == "TOTP")
+            {
+                user.TotpSecret = "";
+                user.EnableTotpMfa = false;
+            } else if(request.AuthType == "Email")
+            {
+                user.EnableEmailMfa = false;
+            } else if(request.AuthType == "Phone")
+            {
+                user.EnablePhoneMfa = false;
+            } else
+            {
+                return JSONResult.ResponseError("不可用的类型");
+            }
+
+            var effected = await _authCenterDbContext.User.Where(u => u.Number == user.Number).ExecuteUpdateAsync(
+                        s => s.SetProperty(u => u.TotpSecret, user.TotpSecret)
+                        .SetProperty(u => u.EnableTotpMfa, user.EnableTotpMfa)
+                        .SetProperty(u => u.EnableEmailMfa, user.EnableEmailMfa)
+                        .SetProperty(u => u.EnablePhoneMfa, user.EnablePhoneMfa));
+
+
+            if (effected == 0)
+            {
+                return JSONResult.ResponseError("更新未执行");
+            }
+
+            return JSONResult.ResponseOk();
         }
     }
 }

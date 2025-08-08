@@ -1,12 +1,15 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json.Serialization;
 
 namespace AuthCenter.Models
 {
     public class ProviderItem
     {
-        public int? Id { get; set; }
+        [JsonIgnore]
+        public int FakeId { get; set; } = 1;
+        public int ProviderId { get; set; }
         public string? Type { get; set; }
         public string[] Rule { get; set; } = [];
     }
@@ -35,5 +38,17 @@ namespace AuthCenter.Models
         public Group? Group { get; set; }
         [NotMapped]
         public List<Provider> Providers { get; set; } = [];
+
+        public Object getMaskedApplication()
+        {
+            return new
+            {
+                Id,
+                Name,
+                ClientId,
+                Scopes,
+                ProviderItems
+            };
+        }
     }
 }

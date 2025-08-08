@@ -1,5 +1,6 @@
 ﻿using AuthCenter.Captcha;
 using AuthCenter.Data;
+using AuthCenter.Models;
 using AuthCenter.Utils;
 using AuthCenter.ViewModels;
 using Microsoft.AspNetCore.Authorization;
@@ -70,7 +71,7 @@ namespace AuthCenter.Controllers
                 }
 
                 var captchaItem = captchaItems.First();
-                var cProvider = _authCenterDbContext.Provider.Find(captchaItem.Id);
+                var cProvider = _authCenterDbContext.Provider.Find(captchaItem.ProviderId);
                 if (cProvider == null)
                 {
                     return JSONResult.ResponseError("验证码提供商失效");
@@ -269,13 +270,68 @@ namespace AuthCenter.Controllers
                 return JSONResult.ResponseError("未知的验证方式");
             }
 
-            var authId = Convert.ToBase64String(Guid.NewGuid().ToByteArray());
-            await _cache.SetStringAsync($"Auth:Verify:{loginUser.Type}:{authId}", User.Identity.Name, new DistributedCacheEntryOptions
+            var authId = Base64UrlEncoder.Encode(Guid.NewGuid().ToByteArray());
+            var keyId = $"Auth:Verify:{loginUser.Type}:{authId}";
+            await _cache.SetStringAsync(keyId, User.Identity.Name, new DistributedCacheEntryOptions
             {
                 AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(120),
             });
 
             return JSONResult.ResponseOk(new { verifyId = authId });
+        }
+
+        [HttpPost("sendVerificationCode", Name="SendVerificationCode")]
+        public async Task<JSONResult> SendVerificationCode(WebAuthnRequest<string> request)
+        {
+            if (request.AuthType == "Email")
+            {
+                var mfaEnableId = Guid.NewGuid().ToString("N");
+                var random = new Random();
+                var code = random.Next(100000, 999999).ToString();
+
+                var curUser = HttpContext.Items["user"] as User;
+
+                var app = await _authCenterDbContext.Application.FindAsync(curUser.loginApplication);
+                if (app == null)
+                {
+                    return JSONResult.ResponseError("认证失效");
+                }
+
+                var mailProviderItem = (from pItem in app.ProviderItems where pItem.Type == "Email" select pItem).FirstOrDefault();
+                if (mailProviderItem is null)
+                {
+                    return JSONResult.ResponseError("无邮件提供商");
+                }
+
+                var provider = await _authCenterDbContext.Provider.FindAsync(mailProviderItem.ProviderId);
+                if (provider == null)
+                {
+                    return JSONResult.ResponseError("无邮件提供商");
+                }
+
+                var sended = await _cache.GetStringAsync($"verification:code:{request.RequestValue}");
+                if (sended == "1")
+                {
+                    return JSONResult.ResponseError("未过冷却期");
+                }
+
+                var body = provider.Body.Replace("%code%", code);
+                Utils.EmailUtils.SendEmail(provider.ConfigureUrl, provider.Port.Value, provider.EnableSSL.Value, provider.ClientId, provider.ClientSecret, request.RequestValue, provider.Subject, body);
+                await _cache.SetStringAsync($"verification:code:{request.RequestValue}", "1", new DistributedCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(60),
+                });
+
+                await _cache.SetStringAsync("verification:email:" + mfaEnableId, $"{code}:{3}", new DistributedCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(300),
+                });
+
+                return JSONResult.ResponseOk(new { mfaEnableId });
+            } else
+            {
+                return JSONResult.ResponseError("未实现");
+            }
         }
     }
 }
