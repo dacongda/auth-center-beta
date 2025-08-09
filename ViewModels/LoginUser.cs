@@ -9,6 +9,7 @@
         public string Type { get; set; } = "";
         public string CaptchaId { get; set; } = "";
         public string Code { get; set; } = "";
+        public bool IsMfaVerify { get; set; } = false;
     }
     public class LoginResult
     {

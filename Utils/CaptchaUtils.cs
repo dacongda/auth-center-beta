@@ -1,4 +1,6 @@
 ﻿
+using AuthCenter.Models;
+using Microsoft.Extensions.Caching.Distributed;
 using SkiaSharp;
 using System.Reflection;
 
@@ -121,22 +123,6 @@ namespace AuthCenter.Utils
                 };
                 canvas.DrawLine(point1, point2, paint);
             }
-            //for (int i = 0; i < width * height / 200; i++)
-            //{
-            //    float fx = (random.Next(width) - width / 2);
-            //    float fx1 = 2;
-            //    float fy = (random.Next(height) - height / 2);
-            //    float fy1 = 2;
-            //    var colorIndex = random.Next(11);
-            //    var paint = new SKPaint()
-            //    {
-
-            //        Color = new SKColor((byte)random.Next(255), (byte)random.Next(255), (byte)random.Next(255), 126),
-            //        IsAntialias = true,
-            //        Style = SKPaintStyle.Fill,
-            //    }; 
-            //    canvas.DrawOval(fx, fy, fx1, fy1, paint);
-            //}
 
             using var image = surface.Snapshot();
             using var ms = new MemoryStream();

@@ -4,23 +4,26 @@ using AuthCenter.Models;
 using AuthCenter.Utils;
 using AuthCenter.ViewModels;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.IdentityModel.Tokens;
+using Org.BouncyCastle.Asn1.Ocsp;
+using OtpNet;
+using System;
 using System.Text.Json;
 
 namespace AuthCenter.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class AuthController(ILogger<UserController> logger, IDistributedCache cache, AuthCenterDbContext authCenterDbContext, IHttpContextAccessor httpContextAccessor, IConfiguration configuration) : Controller
+    public class AuthController(ILogger<UserController> logger, IDistributedCache cache, AuthCenterDbContext authCenterDbContext, IConfiguration configuration) : Controller
     {
         private readonly ILogger<UserController> _logger = logger;
         private readonly IDistributedCache _cache = cache;
         private readonly AuthCenterDbContext _authCenterDbContext = authCenterDbContext;
-        private readonly IHttpContextAccessor _httpContextAccessor = httpContextAccessor;
         private readonly IConfiguration _configuration = configuration;
 
         [HttpPost("login", Name = "Login")]
@@ -48,6 +51,22 @@ namespace AuthCenter.Controllers
 
             var curApplication = group.DefaultApplication;
 
+            // 处理MFA验证
+            if (loginUser.IsMfaVerify)
+            {
+                var userObjStr = _cache.GetString($"mfa:verify:{loginUser.CaptchaId}") ?? "";
+                if (String.IsNullOrEmpty(userObjStr)) return JSONResult.ResponseError("验证Id错误");
+
+                var userObj = JsonSerializer.Deserialize<User>(userObjStr);
+
+                if (!VerifyMfa(userObj, loginUser.LoginMethod, loginUser.Code, loginUser.Password))
+                    return JSONResult.ResponseError("MFA认证失败");
+
+                curApplication = _authCenterDbContext.Application.Find(userObj.loginApplication);
+
+                return HandleUserLogin(loginUser, userObj, curApplication);
+            }
+
             // 登陆至第三方
             if (loginUser.Type != "login")
             {
@@ -58,30 +77,10 @@ namespace AuthCenter.Controllers
                 }
             }
 
-            var captchaItems = (from pItem in curApplication.ProviderItems
-                                where pItem.Type == "Captcha"
-                                select pItem).ToList();
-
-            // 检查验证码
-            if (captchaItems.Count > 0)
+            var captchaVerifyRes = VerifyCaptchaCode(curApplication, loginUser.CaptchaId, loginUser.Code, false);
+            if (captchaVerifyRes != "")
             {
-                if (loginUser.CaptchaId == "" || loginUser.Code == "")
-                {
-                    return JSONResult.ResponseError("需要填写验证码");
-                }
-
-                var captchaItem = captchaItems.First();
-                var cProvider = _authCenterDbContext.Provider.Find(captchaItem.ProviderId);
-                if (cProvider == null)
-                {
-                    return JSONResult.ResponseError("验证码提供商失效");
-                }
-
-                var captchaProvider = ICaptchaProvider.GetCaptchaProvider(cProvider, _cache);
-                if (!captchaProvider.VerifyCode(loginUser.CaptchaId, loginUser.Code))
-                {
-                    return JSONResult.ResponseError("验证码错误");
-                }
+                return JSONResult.ResponseError(captchaVerifyRes);
             }
 
             if (loginUser.LoginMethod == "Passkey")
@@ -93,8 +92,8 @@ namespace AuthCenter.Controllers
                 }
             }
 
-            var user = _authCenterDbContext.User.Where(u => u.Number == loginUser.Name).Include(p => p.Group).AsNoTracking().First();
-            if (user == null || group.TopId == 0 ? user.GroupId != group.Id : user.Group.TopId != group.Id)
+            var user = _authCenterDbContext.User.Where(u => u.Number == loginUser.Name).Include(p => p.Group).AsNoTracking().FirstOrDefault();
+            if (user == null || group.TopId == 0 ? user?.GroupId != group.Id : user?.Group?.TopId != group.Id)
             {
                 return JSONResult.ResponseError("无此用户");
             }
@@ -128,17 +127,84 @@ namespace AuthCenter.Controllers
                 }
             }
 
-            var request = _httpContextAccessor.HttpContext.Request;
+            // 要求MFA
+            if (user.EnableEmailMfa || user.EnablePhoneMfa || user.EnableTotpMfa)
+            {
+                var avaliableMfa = new List<string>();
+                if (user.EnableTotpMfa) avaliableMfa.Add("TOTP");
+                if (user.EnableEmailMfa) avaliableMfa.Add("Email");
+                if (user.EnablePhoneMfa) avaliableMfa.Add("Phone");
 
-            var url = request.Scheme + "://" + request.Host.Value;
+                var mfaVerifyId = Guid.NewGuid().ToString("N");
+                _cache.SetString($"mfa:verify:{mfaVerifyId}", JsonSerializer.Serialize(user), new DistributedCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(300),
+                });
+
+                return JSONResult.ResponseOk(new
+                {
+                    RequireMfa = true,
+                    PreferredMfa = user.PreferredMfaType,
+                    AvaliableMfa = avaliableMfa,
+                    MfaVerifyId = mfaVerifyId
+                });
+            }
+
+            return HandleUserLogin(loginUser, user, curApplication);
+        }
+
+
+        private bool VerifyMfa(User user, string mfaType, string code, string mfaVerifyId)
+        {
+            if (mfaType == "TOTP")
+            {
+                byte[] bytes = Base32Encoding.ToBytes(user.TotpSecret);
+                var totp = new Totp(bytes);
+
+                long timeStampMatched;
+                return totp.VerifyTotp(code, out timeStampMatched, VerificationWindow.RfcSpecifiedNetworkDelay);
+            }
+            else if (mfaType == "Email")
+            {
+                var secret = _cache.GetString($"verification:email:{mfaVerifyId}");
+
+                var res = secret.Split(':');
+                var validTime = Convert.ToInt32(res[1]);
+                var ans = res[0];
+                if (Convert.ToInt32(validTime) == 0)
+                {
+                    _cache.Remove($"verification:email:{mfaVerifyId}");
+                    return false;
+                }
+
+                if (code != ans)
+                {
+                    _cache.SetStringAsync($"verification:email:{mfaVerifyId}", $"{code}:{validTime - 1}", new DistributedCacheEntryOptions
+                    {
+                        AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(300),
+                    });
+                    return false;
+                }
+
+                return true;
+            }
+            else
+            {
+                var ans = _cache.GetString($"verification:code:{mfaVerifyId}");
+                return code == ans;
+            }
+        }
+
+        private JSONResult HandleUserLogin(LoginUser loginUser, User user, Application application)
+        {
+            var url = Request.Scheme + "://" + Request.Host.Value;
             var frontEndUrl = _configuration["FrontEndUrl"] ?? "";
             if (frontEndUrl == null || frontEndUrl == "")
             {
                 frontEndUrl = url;
             }
 
-            string[] oauthType = ["code", "code id_token", "id_token", "id_token token", "code id_token token"];
-
+            var responseType = Request.Query["response_type"];
             // 登陆系统管理页
             if (loginUser.Type == "login")
             {
@@ -166,7 +232,7 @@ namespace AuthCenter.Controllers
 
                 var parsedRedirectUrl = new Uri(redirectUrl.ToString());
 
-                var targetRedirect = curApplication.RedirectUrls?
+                var targetRedirect = application.RedirectUrls?
                     .Where(allowedUrl => (new Uri(allowedUrl)).Host == parsedRedirectUrl.Host)
                     .First();
                 if (targetRedirect == null)
@@ -195,7 +261,7 @@ namespace AuthCenter.Controllers
 
                 if (responseType.Contains("id_token") || responseType.Contains("token"))
                 {
-                    var tokenPack = TokenUtil.GenerateCodeToken(curApplication.Cert, user, curApplication, url, scope, nonce);
+                    var tokenPack = TokenUtil.GenerateCodeToken(application.Cert, user, application, url, scope, nonce);
                     if (responseType.Contains("id_token"))
                     {
                         dict["id_token"] = tokenPack.IdToken ?? "";
@@ -215,7 +281,7 @@ namespace AuthCenter.Controllers
                 var samlRequest = SamlUtil.ParseSamlRequest(rawSamlRequest.ToString());
 
                 var redirectUri = new Uri(samlRequest.AssertionConsumerServiceURL ?? "");
-                var targetRedirect = curApplication.RedirectUrls?
+                var targetRedirect = application.RedirectUrls?
                     .Where(allowedUrl => (new Uri(allowedUrl)).Host == redirectUri.Host)
                     .First();
                 if (targetRedirect == null)
@@ -224,7 +290,7 @@ namespace AuthCenter.Controllers
                 }
 
                 var respId = Guid.NewGuid().ToString("N");
-                var samlResponse = SamlUtil.GetSAMLResponse(user, curApplication, url, frontEndUrl, samlRequest.AssertionConsumerServiceURL ?? "", samlRequest.Issuer, respId, samlRequest.ID);
+                var samlResponse = SamlUtil.GetSAMLResponse(user, application, url, frontEndUrl, samlRequest.AssertionConsumerServiceURL ?? "", samlRequest.Issuer, respId, samlRequest.ID);
                 return JSONResult.ResponseOk(new
                 {
                     samlResponse,
@@ -280,22 +346,77 @@ namespace AuthCenter.Controllers
             return JSONResult.ResponseOk(new { verifyId = authId });
         }
 
-        [HttpPost("sendVerificationCode", Name="SendVerificationCode")]
-        public async Task<JSONResult> SendVerificationCode(WebAuthnRequest<string> request)
+        [HttpPost("sendVerificationCode", Name = "SendVerificationCode")]
+        [AllowAnonymous]
+        public async Task<JSONResult> SendVerificationCode(VerificationCodeRequest request)
         {
+
+            // 获取用户
+            User? curUser;
+            if (HttpContext.Items["user"] is not null)
+            {
+                curUser = HttpContext.Items["user"] as User;
+            }
+            else
+            {
+                var userObjStr = _cache.GetString($"mfa:verify:{request.VerifyId}") ?? "";
+                if (String.IsNullOrEmpty(userObjStr)) return JSONResult.ResponseError("验证Id错误");
+
+                curUser = JsonSerializer.Deserialize<User>(userObjStr);
+            }
+
+            // 应用为空时默认取用户的
+            if (request.ApplicationId is null)
+            {
+                if (curUser is null)
+                {
+                    return JSONResult.ResponseError("未指定应用");
+                }
+                request.ApplicationId = curUser.loginApplication;
+            }
+
+
+            // 目的地为空是默认取用用户的
+            if (request.Destination == "")
+            {
+                if (curUser is null)
+                {
+                    return JSONResult.ResponseError("未指定目的地址");
+                }
+
+                if (request.AuthType == "Email")
+                {
+                    request.Destination = curUser.Email ?? "";
+                }
+
+                if (request.AuthType == "Phone")
+                {
+                    request.Destination = curUser.Phone ?? "";
+                }
+
+                if (request.Destination == "")
+                {
+                    return JSONResult.ResponseError("未指定目的地址");
+                }
+            }
+
+            var app = await _authCenterDbContext.Application.FindAsync(request.ApplicationId);
+            if (app == null)
+            {
+                return JSONResult.ResponseError("认证失效");
+            }
+
+            var captchaVerifyRes = VerifyCaptchaCode(app, request.CaptchaId, request.CaptchaCode, true);
+            if (captchaVerifyRes != "") {
+                return JSONResult.ResponseError(captchaVerifyRes);
+            }
+
+
             if (request.AuthType == "Email")
             {
                 var mfaEnableId = Guid.NewGuid().ToString("N");
                 var random = new Random();
                 var code = random.Next(100000, 999999).ToString();
-
-                var curUser = HttpContext.Items["user"] as User;
-
-                var app = await _authCenterDbContext.Application.FindAsync(curUser.loginApplication);
-                if (app == null)
-                {
-                    return JSONResult.ResponseError("认证失效");
-                }
 
                 var mailProviderItem = (from pItem in app.ProviderItems where pItem.Type == "Email" select pItem).FirstOrDefault();
                 if (mailProviderItem is null)
@@ -309,29 +430,64 @@ namespace AuthCenter.Controllers
                     return JSONResult.ResponseError("无邮件提供商");
                 }
 
-                var sended = await _cache.GetStringAsync($"verification:code:{request.RequestValue}");
+                var sended = await _cache.GetStringAsync($"verification:code:{request.Destination}");
                 if (sended == "1")
                 {
                     return JSONResult.ResponseError("未过冷却期");
                 }
 
                 var body = provider.Body.Replace("%code%", code);
-                Utils.EmailUtils.SendEmail(provider.ConfigureUrl, provider.Port.Value, provider.EnableSSL.Value, provider.ClientId, provider.ClientSecret, request.RequestValue, provider.Subject, body);
-                await _cache.SetStringAsync($"verification:code:{request.RequestValue}", "1", new DistributedCacheEntryOptions
+                Utils.EmailUtils.SendEmail(provider.ConfigureUrl, provider.Port.Value, provider.EnableSSL.Value, provider.ClientId, provider.ClientSecret, request.Destination, provider.Subject, body);
+                await _cache.SetStringAsync($"verification:code:{request.Destination}", "1", new DistributedCacheEntryOptions
                 {
                     AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(60),
                 });
 
-                await _cache.SetStringAsync("verification:email:" + mfaEnableId, $"{code}:{3}", new DistributedCacheEntryOptions
+                await _cache.SetStringAsync($"verification:email:{mfaEnableId}", $"{code}:{3}", new DistributedCacheEntryOptions
                 {
                     AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(300),
                 });
 
                 return JSONResult.ResponseOk(new { mfaEnableId });
-            } else
+            }
+            else
             {
                 return JSONResult.ResponseError("未实现");
             }
+        }
+
+        private string VerifyCaptchaCode(Application app, string captchaId, string captchaCode, bool mustVerify)
+        {
+            var captchaItems = (from pItem in app.ProviderItems
+                                where pItem.Type == "Captcha"
+                                select pItem).ToList();
+
+
+            if (captchaItems.Count == 0)
+            {
+                return mustVerify ? "为保证安全，发送验证码必须指定一个验证码提供商" : "";
+            }
+
+
+            if (captchaId == "" || captchaCode == "")
+            {
+                return "需要填写验证码";
+            }
+
+            var captchaItem = captchaItems.First();
+            var cProvider = _authCenterDbContext.Provider.Find(captchaItem.ProviderId);
+            if (cProvider == null)
+            {
+                return "验证码提供商失效";
+            }
+
+            var captchaProvider = ICaptchaProvider.GetCaptchaProvider(cProvider, _cache);
+            if (!captchaProvider.VerifyCode(captchaId, captchaCode))
+            {
+                return "验证码错误";
+            }
+
+            return "";
         }
     }
 }

@@ -54,7 +54,7 @@ namespace AuthCenter.Models
         /// <summary>
         /// 偏好MFA类型
         /// </summary>
-        public string PreferedMfaType { get; set; } = "";
+        public string PreferredMfaType { get; set; } = "";
         /// <summary>
         /// Totp 密钥
         /// </summary>

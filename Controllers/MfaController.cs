@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
+using Newtonsoft.Json;
 using OtpNet;
 using System.Security.Cryptography;
 using System.Text;
@@ -73,7 +74,7 @@ namespace AuthCenter.Controllers
                 }
 
                 var sended = await _cache.GetStringAsync($"verification:code:{curUser.Email}");
-                if( sended == "1")
+                if (sended == "1")
                 {
                     return JSONResult.ResponseError("未过冷却期");
                 }
@@ -134,11 +135,11 @@ namespace AuthCenter.Controllers
                     await _cache.RemoveAsync($"mfa:enable:{request.CacheOptionId}");
                     return JSONResult.ResponseError("验证码失效");
                 }
-                
 
-                if(code != request.RequestValue)
+
+                if (code != request.RequestValue)
                 {
-                    await _cache.SetStringAsync($"mfa:enable:{request.CacheOptionId}", $"{code}:{validTime-1}", new DistributedCacheEntryOptions
+                    await _cache.SetStringAsync($"mfa:enable:{request.CacheOptionId}", $"{code}:{validTime - 1}", new DistributedCacheEntryOptions
                     {
                         AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(300),
                     });
@@ -176,6 +177,34 @@ namespace AuthCenter.Controllers
             });
         }
 
+        [HttpPost("setPreferredMfa", Name = "SetPreferredMfa")]
+        public async Task<JSONResult> SetPreferredMfa([FromBody]dynamic data)
+        {
+            var user = HttpContext.Items["user"] as User;
+            if (user is null)
+            {
+                return JSONResult.ResponseError("用户获取失败");
+            }
+
+            dynamic dynParam = JsonConvert.DeserializeObject(Convert.ToString(data));
+            var preferedMfa = (string)dynParam.preferedMfa;
+
+            if (preferedMfa == "Email" && user.EnableEmailMfa || preferedMfa == "Phone" && user.EnablePhoneMfa || preferedMfa == "TOTP" && user.EnableTotpMfa)
+            {
+                var effected = await _authCenterDbContext.User.Where(u => u.Number == user.Number).ExecuteUpdateAsync(
+               s => s.SetProperty(u => u.PreferredMfaType, preferedMfa));
+
+                if (effected == 0)
+                {
+                    return JSONResult.ResponseError("更新未执行");
+                }
+
+                return JSONResult.ResponseOk();
+            }
+
+            return JSONResult.ResponseError("错误的MFA类型或未设置此MFA");
+        }
+
         [HttpPost("disableMfaVerify", Name = "DisableMfaVerify")]
         public async Task<JSONResult> DisableMfaVerify(WebAuthnRequest<string> request)
         {
@@ -190,18 +219,21 @@ namespace AuthCenter.Controllers
             {
                 return JSONResult.ResponseError("认证失效");
             }
-            
+
             if (request.AuthType == "TOTP")
             {
                 user.TotpSecret = "";
                 user.EnableTotpMfa = false;
-            } else if(request.AuthType == "Email")
+            }
+            else if (request.AuthType == "Email")
             {
                 user.EnableEmailMfa = false;
-            } else if(request.AuthType == "Phone")
+            }
+            else if (request.AuthType == "Phone")
             {
                 user.EnablePhoneMfa = false;
-            } else
+            }
+            else
             {
                 return JSONResult.ResponseError("不可用的类型");
             }
