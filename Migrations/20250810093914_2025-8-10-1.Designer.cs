@@ -3,6 +3,7 @@ using System;
 using AuthCenter.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AuthCenter.Migrations
 {
     [DbContext(typeof(AuthCenterDbContext))]
-    partial class AuthCenterDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250810093914_2025-8-10-1")]
+    partial class _20258101
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -261,11 +264,6 @@ namespace AuthCenter.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
-                    b.Property<string>("DisplayName")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("display_name");
-
                     b.Property<string>("Domain")
                         .HasColumnType("text")
                         .HasColumnName("domain");
@@ -435,38 +433,6 @@ namespace AuthCenter.Migrations
                     b.ToTable("user", (string)null);
                 });
 
-            modelBuilder.Entity("AuthCenter.Models.UserThirdpartInfo", b =>
-                {
-                    b.Property<string>("ProviderName")
-                        .HasColumnType("text")
-                        .HasColumnName("provider_name");
-
-                    b.Property<string>("UserId")
-                        .HasColumnType("text")
-                        .HasColumnName("user_id");
-
-                    b.Property<DateTime?>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("ThirdPartId")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("third_part_id");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.HasKey("ProviderName", "UserId")
-                        .HasName("pk_user_thirdpart_infos");
-
-                    b.HasIndex("ThirdPartId")
-                        .HasDatabaseName("ix_user_thirdpart_infos_third_part_id");
-
-                    b.ToTable("user_thirdpart_infos", (string)null);
-                });
-
             modelBuilder.Entity("AuthCenter.Models.WebAuthnCredential", b =>
                 {
                     b.Property<string>("Id")
@@ -603,25 +569,6 @@ namespace AuthCenter.Migrations
                         {
                             b1.Property<int>("ProviderId")
                                 .HasColumnType("integer");
-
-                            b1.Property<string>("Email")
-                                .IsRequired()
-                                .HasColumnType("text");
-
-                            b1.Property<string>("Id")
-                                .HasColumnType("text");
-
-                            b1.Property<string>("Name")
-                                .IsRequired()
-                                .HasColumnType("text");
-
-                            b1.Property<string>("Phone")
-                                .IsRequired()
-                                .HasColumnType("text");
-
-                            b1.Property<string>("PreferredName")
-                                .IsRequired()
-                                .HasColumnType("text");
 
                             b1.HasKey("ProviderId");
 

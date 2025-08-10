@@ -132,7 +132,7 @@ namespace AuthCenter.Utils
 
             SignedXml? signedXml = null;
             var x509Cert = application.Cert.ToX509Certificate2();
-            if (application.Cert.CryptoAlgorithm == "RSA")
+            if (application.Cert.CryptoAlgorithm == "RS")
             {
                 signedXml = new(xeAssertion)
                 {

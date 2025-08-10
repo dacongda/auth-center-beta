@@ -43,7 +43,7 @@ namespace AuthCenter.Models
             var privateCert = X509CertificateLoader.LoadPkcs12(data: Convert.FromBase64String(PriviteKey ?? ""), password: null, keyStorageFlags: X509KeyStorageFlags.DefaultKeySet);
 
 
-            if (CryptoAlgorithm == "RSA")
+            if (CryptoAlgorithm == "RS")
             {
                 publicCert = publicCert.CopyWithPrivateKey(privateCert.GetRSAPrivateKey());
             }
@@ -61,7 +61,7 @@ namespace AuthCenter.Models
         public SecurityKey ToSecurityKey()
         {
             var x509key = ToX509Certificate2();
-            if (CryptoAlgorithm == "RSA")
+            if (CryptoAlgorithm == "RS")
             {
                 return new X509SecurityKey(x509key);
             }
@@ -93,7 +93,7 @@ namespace AuthCenter.Models
             {
                 throw new Exception("cert transfer fail");
             }
-            if (CryptoAlgorithm == "RSA")
+            if (CryptoAlgorithm == "RS")
             {
                 return publicCert.GetRSAPublicKey().ToXmlString(includePrivateKey);
             }

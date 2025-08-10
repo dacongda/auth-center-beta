@@ -47,7 +47,8 @@ namespace AuthCenter.Models
                 Name,
                 ClientId,
                 Scopes,
-                ProviderItems
+                ProviderItems,
+                Providers
             };
         }
     }

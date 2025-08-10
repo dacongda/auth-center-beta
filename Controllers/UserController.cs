@@ -24,15 +24,13 @@ namespace AuthCenter.Controllers
         private readonly ILogger<UserController> _logger;
         private readonly IDistributedCache _cache;
         private readonly AuthCenterDbContext _authCenterDbContext;
-        private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly IConfiguration _configuration;
 
-        public UserController(ILogger<UserController> logger, IDistributedCache cache, AuthCenterDbContext authCenterDbContext, IHttpContextAccessor httpContextAccessor, IConfiguration configuration)
+        public UserController(ILogger<UserController> logger, IDistributedCache cache, AuthCenterDbContext authCenterDbContext, IConfiguration configuration)
         {
             _logger = logger;
             _cache = cache;
             _authCenterDbContext = authCenterDbContext;
-            _httpContextAccessor = httpContextAccessor;
             _configuration = configuration;
         }
 
@@ -159,7 +157,7 @@ namespace AuthCenter.Controllers
                     }
                 }
 
-                _authCenterDbContext.User.Where(u => u.Number == curUser.Number).ExecuteUpdate(s => s.SetProperty(u => u.Email , request.Email).SetProperty(u=> u.EmailVerified, true));
+                _authCenterDbContext.User.Where(u => u.Number == curUser.Number).ExecuteUpdate(s => s.SetProperty(u => u.Email, request.Email).SetProperty(u => u.EmailVerified, true));
                 return JSONResult.ResponseOk();
             }
             else if (request.Type == "Phone")
@@ -181,6 +179,26 @@ namespace AuthCenter.Controllers
             }
 
             return JSONResult.ResponseError("未知类型");
+        }
+
+        [HttpPost("unBindThirdPart", Name = "UnBindThirdPart")]
+        [Authorize(Roles = "admin,user")]
+        public async Task<JSONResult> UnBindThirdPart(UserThirdpartInfo userThirdpartInfo)
+        {
+            if (userThirdpartInfo.UserId != User.Identity.Name && !User.IsInRole("admin"))
+            {
+                return JSONResult.ResponseError("无权操作");
+            }
+
+            var res = await _authCenterDbContext.UserThirdpartInfos
+                .Where(uti => uti.ProviderName == userThirdpartInfo.ProviderName && uti.UserId == userThirdpartInfo.UserId)
+                .ExecuteDeleteAsync();
+
+            if (res != 1)
+            {
+                return JSONResult.ResponseError("删除失败");
+            }
+            return JSONResult.ResponseOk();
         }
 
         [HttpDelete(Name = "DeleteUser")]
@@ -235,6 +253,20 @@ namespace AuthCenter.Controllers
             return JSONResult.ResponseOk(user);
         }
 
+        [HttpGet("myThirdPartBind", Name = "GetMyThirdPartBind")]
+        [Authorize(Roles = "admin,user")]
+        public async Task<JSONResult> GetMyThirdPartBind()
+        {
+            if (User.Identity == null)
+            {
+                Response.StatusCode = 401;
+                return JSONResult.ResponseError("用户信息无效");
+            }
+
+            var thirdPartBind = await _authCenterDbContext.UserThirdpartInfos.Where(uti => uti.UserId == User.Identity.Name).AsNoTracking().ToListAsync();
+            return JSONResult.ResponseOk(thirdPartBind);
+        }
+
         [HttpGet("info", Name = "user-info")]
         [Authorize(Roles = "admin,user")]
         public JSONResult Info()
@@ -250,6 +282,21 @@ namespace AuthCenter.Controllers
             {
                 Response.StatusCode = 401;
                 return JSONResult.ResponseError("用户信息无效");
+            }
+
+            var appProviderItems = (from pItem in application.ProviderItems where pItem.Type == "Captcha" || pItem.Type == "Auth" select pItem.ProviderId).ToList();
+            if (appProviderItems.Any())
+            {
+                application.Providers = [.. _authCenterDbContext.Provider.Where(p => appProviderItems.Contains(p.Id)).Select(p => new Provider{
+                    Name = p.Name,
+                    DisplayName = p.DisplayName,
+                    Type = p.Type,
+                    SubType = p.SubType,
+                    FaviconUrl = p.FaviconUrl,
+                    ClientId = p.ClientId,
+                    AuthEndpoint = p.AuthEndpoint,
+                    Scopes = p.Scopes
+                })];
             }
 
             return JSONResult.ResponseOk(new
@@ -279,6 +326,7 @@ namespace AuthCenter.Controllers
                 sub = user.Number,
                 name = user.Name,
                 email = user.Email,
+                email_verified = user.EmailVerified
             });
         }
     }

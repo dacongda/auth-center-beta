@@ -12,17 +12,17 @@ namespace AuthCenter.Controllers
 {
     [Controller]
     [Route("api/[controller]")]
-    public class OAuthController(IHttpContextAccessor httpContextAccessor, IDistributedCache cache, AuthCenterDbContext authCenterDbContext) : Controller
+    public class OAuthController(IDistributedCache cache, AuthCenterDbContext authCenterDbContext, IConfiguration configuration) : Controller
     {
-        private readonly HttpContext _httpContext = httpContextAccessor.HttpContext;
         private readonly IDistributedCache _cache = cache;
         private readonly AuthCenterDbContext _authCenterDbContext = authCenterDbContext;
+        private readonly IConfiguration _configuration = configuration;
 
         [HttpPost("token", Name = "oauth token")]
         [Authorize(AuthenticationSchemes = BasicAuthorizationHandler.BasicSchemeName, Roles = "app")]
         public IActionResult Token(string code, string? grant_type, string? redirect_uri, string? scopes)
         {
-            Application? app = _httpContext.Items["application"] as Application;
+            Application? app = HttpContext.Items["application"] as Application;
             if (app == null)
             {
                 Response.StatusCode = StatusCodes.Status400BadRequest;
@@ -71,7 +71,12 @@ namespace AuthCenter.Controllers
             }
 
             var url = Request.Scheme + "://" + Request.Host.Value;
-            var tokenPack = TokenUtil.GenerateCodeToken(app.Cert, parsedLoginInfo.user, app, url, scopes ?? "", parsedLoginInfo.nonce);
+            var frontEndUrl = _configuration["FrontEndUrl"] ?? "";
+            if (frontEndUrl == null || frontEndUrl == "")
+            {
+                frontEndUrl = url;
+            }
+            var tokenPack = TokenUtil.GenerateCodeToken(app.Cert, parsedLoginInfo.user, app, frontEndUrl, scopes ?? "", parsedLoginInfo.nonce);
 
             return Json(new
             {

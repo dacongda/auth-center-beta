@@ -4,11 +4,21 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace AuthCenter.Models
 {
+    public class UserInfoMap
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string PreferredName { get; set; } = "";
+        public string Email { get; set; } = "";
+        public string Phone { get; set; } = "";
+    }
+
     [Index(nameof(Name), IsUnique = true)]
     public class Provider : BaseModel
     {
         [Required]
         public required string Name { get; set; }
+        public string DisplayName { get; set; } = "";
         [Required]
         public required string Type { get; set; }
         [Required]
@@ -30,6 +40,14 @@ namespace AuthCenter.Models
          * Endpoint for S3
          */
         public string? ConfigureUrl { get; set; }
+        
+        public string? AuthEndpoint { get; set; }
+        public string? TokenEndpoint { get; set; }
+        public string? UserInfoEndpoint { get; set; }
+        public string? JwksEndpoint { get; set; }
+        public string? Scopes { get; set; }
+
+        public UserInfoMap? UserInfoMap { get; set; }
         /**
          * Subject for Email
          * Bucket for S3

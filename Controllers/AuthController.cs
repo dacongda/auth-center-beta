@@ -1,5 +1,6 @@
 ﻿using AuthCenter.Captcha;
 using AuthCenter.Data;
+using AuthCenter.IdProvider;
 using AuthCenter.Models;
 using AuthCenter.Utils;
 using AuthCenter.ViewModels;
@@ -27,7 +28,9 @@ namespace AuthCenter.Controllers
         private readonly IConfiguration _configuration = configuration;
 
         [HttpPost("login", Name = "Login")]
-        public JSONResult Login(LoginUser loginUser)
+        [Authorize(Roles = "admin,user")]
+        [AllowAnonymous]
+        public async Task<JSONResult> Login(LoginUser loginUser)
         {
             var responseType = Request.Query["response_type"];
             var clientId = Request.Query["client_id"];
@@ -68,7 +71,7 @@ namespace AuthCenter.Controllers
             }
 
             // 登陆至第三方
-            if (loginUser.Type != "login")
+            if (loginUser.Type != "login" && loginUser.Type != "bind")
             {
                 curApplication = _authCenterDbContext.Application.Where(app => app.ClientId == clientId.ToString()).Include(app => app.Cert).AsNoTracking().First();
                 if (curApplication == null)
@@ -77,11 +80,16 @@ namespace AuthCenter.Controllers
                 }
             }
 
-            var captchaVerifyRes = VerifyCaptchaCode(curApplication, loginUser.CaptchaId, loginUser.Code, false);
-            if (captchaVerifyRes != "")
+            if (loginUser.LoginMethod != "ThirdPart")
             {
-                return JSONResult.ResponseError(captchaVerifyRes);
+                var captchaVerifyRes = VerifyCaptchaCode(curApplication, loginUser.CaptchaId, loginUser.Code, false);
+                if (captchaVerifyRes != "")
+                {
+                    return JSONResult.ResponseError(captchaVerifyRes);
+                }
             }
+
+            var verifyPassword = false;
 
             if (loginUser.LoginMethod == "Passkey")
             {
@@ -90,12 +98,70 @@ namespace AuthCenter.Controllers
                 {
                     return JSONResult.ResponseError("Passkey信息失效");
                 }
+                verifyPassword = true;
+            }
+
+            UserInfo? userInfo = null;
+            if (loginUser.LoginMethod == "ThirdPart")
+            {
+                var idProvider = _authCenterDbContext.Provider.Where(p => p.Name == loginUser.Code).FirstOrDefault();
+                if (idProvider is null)
+                {
+                    return JSONResult.ResponseError("身份提供商不存在");
+                }
+
+                var providerItem = curApplication.ProviderItems.Find(pi => pi.ProviderId == idProvider.Id);
+
+                var url = Request.Scheme + "://" + Request.Host.Value;
+                var frontEndUrl = _configuration["FrontEndUrl"] ?? "";
+                if (frontEndUrl == null || frontEndUrl == "")
+                {
+                    frontEndUrl = url;
+                }
+
+                var idProviderUtil = IIdProvider.GetIdProvider(idProvider, $"{frontEndUrl}/auth/callback", _cache);
+
+                userInfo = await idProviderUtil.getUserInfo(loginUser.Password);
+                var userId = _authCenterDbContext.UserThirdpartInfos
+                    .Where(uti => uti.ProviderName == idProvider.Name && uti.ThirdPartId == userInfo.Id)
+                    .Select(uti => uti.UserId).FirstOrDefault();
+
+                if (loginUser.Type == "bind")
+                {
+                    userId = User.Identity?.Name;
+                }
+
+                if (userId is null) {
+                    return JSONResult.ResponseError("用户不存在");
+                }
+
+                loginUser.Name = userId;
+                verifyPassword = true;
             }
 
             var user = _authCenterDbContext.User.Where(u => u.Number == loginUser.Name).Include(p => p.Group).AsNoTracking().FirstOrDefault();
             if (user == null || group.TopId == 0 ? user?.GroupId != group.Id : user?.Group?.TopId != group.Id)
             {
                 return JSONResult.ResponseError("无此用户");
+            }
+
+            if (loginUser.Type == "bind")
+            {
+                if (userInfo == null)
+                {
+                    return JSONResult.ResponseError("无此用户");
+                }
+
+                var userThirdPartInfo = new UserThirdpartInfo
+                {
+                    ProviderName = loginUser.Code,
+                    UserId = user.Number,
+                    ThirdPartId = userInfo.Id,
+                };
+
+                _ = await _authCenterDbContext.AddAsync(userThirdPartInfo);
+                _authCenterDbContext.SaveChanges();
+                return JSONResult.ResponseOk("成功");
             }
 
             user.loginApplication = curApplication.Id;
@@ -113,6 +179,12 @@ namespace AuthCenter.Controllers
                 {
                     return JSONResult.ResponseError("密码错误");
                 }
+                verifyPassword = true;
+            }
+
+            if (!verifyPassword)
+            {
+                return JSONResult.ResponseError("密码错误");
             }
 
             if (user.Group != null && loginUser.Type != "login")
@@ -128,7 +200,7 @@ namespace AuthCenter.Controllers
             }
 
             // 要求MFA
-            if (user.EnableEmailMfa || user.EnablePhoneMfa || user.EnableTotpMfa)
+            if ((user.EnableEmailMfa || user.EnablePhoneMfa || user.EnableTotpMfa) && loginUser.LoginMethod != "Passkey")
             {
                 var avaliableMfa = new List<string>();
                 if (user.EnableTotpMfa) avaliableMfa.Add("TOTP");
@@ -234,7 +306,7 @@ namespace AuthCenter.Controllers
 
                 var targetRedirect = application.RedirectUrls?
                     .Where(allowedUrl => (new Uri(allowedUrl)).Host == parsedRedirectUrl.Host)
-                    .First();
+                    .FirstOrDefault();
                 if (targetRedirect == null)
                 {
                     return JSONResult.ResponseError("目标地址不在许可地址内");
@@ -407,7 +479,8 @@ namespace AuthCenter.Controllers
             }
 
             var captchaVerifyRes = VerifyCaptchaCode(app, request.CaptchaId, request.CaptchaCode, true);
-            if (captchaVerifyRes != "") {
+            if (captchaVerifyRes != "")
+            {
                 return JSONResult.ResponseError(captchaVerifyRes);
             }
 

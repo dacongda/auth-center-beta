@@ -21,7 +21,9 @@ namespace AuthCenter.Utils
 
             var certKey = cert.ToSecurityKey();
             var signTp = cert.CryptoAlgorithm + cert.CryptoSHASize.ToString();
-            var signingCredentials = new SigningCredentials(certKey, cert.CryptoAlgorithm + cert.CryptoSHASize.ToString());
+
+            var alogo = $"{cert.CryptoAlgorithm}{cert.CryptoSHASize}";
+            var signingCredentials = new SigningCredentials(certKey, $"{cert.CryptoAlgorithm}{cert.CryptoSHASize}");
 
             return new JwtTokenPack
             {
@@ -54,7 +56,7 @@ namespace AuthCenter.Utils
 
             if (scopes.Contains("phone"))
             {
-                claims.Add(new("phone", user.Phone ?? ""));
+                claims.Add(new("phone", user.Phone?.Replace(" ", "") ?? ""));
             }
 
             if (user.Roles != null)

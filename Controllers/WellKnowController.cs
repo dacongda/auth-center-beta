@@ -8,23 +8,16 @@ namespace AuthCenter.Controllers
 {
     [ApiController]
     [Route(".well-known")]
-    public class WellKnowController(AuthCenterDbContext authCenterDbContext, IHttpContextAccessor httpContextAccessor, IConfiguration configuration) : Controller
+    public class WellKnowController(AuthCenterDbContext authCenterDbContext, IConfiguration configuration) : Controller
     {
 
-        private readonly IHttpContextAccessor _httpContextAccessor = httpContextAccessor;
         private readonly AuthCenterDbContext _authCenterDbContext = authCenterDbContext;
         private readonly IConfiguration _configuration = configuration;
 
         [HttpGet("openid-configuration", Name = "openid-configuration")]
         public IActionResult OpenidConfiguration()
         {
-            var request = _httpContextAccessor.HttpContext?.Request;
-            if (request is null)
-            {
-                return BadRequest();
-            }
-
-            var url = request.Scheme + "://" + request.Host.Value;
+            var url = Request.Scheme + "://" + Request.Host.Value;
             var frontEndUrl = _configuration["frontEndUrl"];
             if (frontEndUrl == null || frontEndUrl == "")
             {
@@ -33,7 +26,7 @@ namespace AuthCenter.Controllers
 
             var config = new OpenidConfiguration
             {
-                issuer = url,
+                issuer = frontEndUrl,
                 authorization_endpoint = frontEndUrl + "/auth/login",
                 token_endpoint = url + "/api/oauth/token",
                 userinfo_endpoint = url + "/api/user/userinfo",
@@ -60,7 +53,7 @@ namespace AuthCenter.Controllers
 
             foreach (var cert in certs)
             {
-                if (cert.CryptoAlgorithm == "RSA")
+                if (cert.CryptoAlgorithm == "RS")
                 {
                     jsonWebKeys.Add(JsonWebKeyConverter.ConvertFromX509SecurityKey(new X509SecurityKey(cert.ToX509Certificate2()), true));
                 }

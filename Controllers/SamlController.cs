@@ -7,18 +7,15 @@ namespace AuthCenter.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class SamlController(IHttpContextAccessor httpContextAccessor, IDistributedCache cache, AuthCenterDbContext authCenterDbContext, IConfiguration configuration)
+    public class SamlController(IHttpContextAccessor httpContextAccessor, IDistributedCache cache, AuthCenterDbContext authCenterDbContext, IConfiguration configuration) : Controller
     {
-        private readonly HttpContext _httpContext = httpContextAccessor.HttpContext;
         private readonly AuthCenterDbContext _authCenterDbContext = authCenterDbContext;
         private readonly IConfiguration _configuration = configuration;
 
         [HttpGet("metadata/{clientId}", Name = "Saml metadata")]
         public IActionResult Metadata(string clientId)
         {
-            var request = _httpContext.Request;
-
-            var url = request.Scheme + "://" + request.Host.Value;
+            var url = Request.Scheme + "://" + Request.Host.Value;
             var frontEndUrl = _configuration["FrontEndUrl"] ?? "";
             if (frontEndUrl == null || frontEndUrl == "")
             {

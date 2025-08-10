@@ -34,6 +34,7 @@ namespace AuthCenter.Data
         public DbSet<Group> Group { get; set; } = default!;
         public DbSet<Provider> Provider { get; set; } = default!;
         public DbSet<WebAuthnCredential> WebAuthnCredential { get; set; } = default!;
+        public DbSet<UserThirdpartInfo> UserThirdpartInfos { get; set; } = default!;
 
 
         public override int SaveChanges()
@@ -89,6 +90,12 @@ namespace AuthCenter.Data
                     builder.WithOwner().HasForeignKey(f=>f.FakeId);
                 });
 
+            modelBuilder.Entity<Provider>()
+                .OwnsOne(e => e.UserInfoMap, builder =>
+                {
+                    builder.ToJson();
+                });
+
             base.OnModelCreating(modelBuilder);
         }
 
@@ -102,7 +109,7 @@ namespace AuthCenter.Data
                     var defaultCert = context.Set<Cert>().FirstOrDefault(a => a.Id == 1);
                     if (defaultCert == null)
                     {
-                        var newCert = CertUtil.CreateNewCert("default", "RSA", 256, 2048, "jwk", $"CN=Auth Center", null);
+                        var newCert = CertUtil.CreateNewCert("default", "RS", 256, 2048, "jwk", $"CN=Auth Center", null);
                         newCert.Id = 1;
                         context.Set<Cert>().Add(newCert);
                         context.SaveChanges();

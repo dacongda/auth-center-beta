@@ -197,10 +197,19 @@ namespace AuthCenter.Controllers
             }
 
             var app = group.DefaultApplication;
-            var appProviderItems = (from pItem in app.ProviderItems where pItem.Type == "Captcha" || pItem.Type == "OAuth" select pItem.ProviderId).ToList();
+            var appProviderItems = (from pItem in app.ProviderItems where pItem.Type == "Captcha" || pItem.Type == "Auth" select pItem.ProviderId).ToList();
             if (appProviderItems.Any())
             {
-                group.DefaultApplication.Providers = [.. _authCenterDbContext.Provider.Where(p => appProviderItems.Contains(p.Id))];
+                group.DefaultApplication.Providers = [.. _authCenterDbContext.Provider.Where(p => appProviderItems.Contains(p.Id)).Select(p => new Provider{
+                    Name = p.Name,
+                    DisplayName = p.DisplayName,
+                    Type = p.Type,
+                    SubType = p.SubType,
+                    FaviconUrl = p.FaviconUrl,
+                    ClientId = p.ClientId,
+                    AuthEndpoint = p.AuthEndpoint,
+                    Scopes = p.Scopes
+                })];
             }
 
             return JSONResult.ResponseOk(group);

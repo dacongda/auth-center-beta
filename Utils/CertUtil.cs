@@ -22,7 +22,7 @@ namespace AuthCenter.Utils
 
             switch (cryptoAlgorithm)
             {
-                case "RSA":
+                case "RS":
                     {
                         var algorithm = RSA.Create(keySizeInBits: bitSize);
                         certRequest = new CertificateRequest(subject, algorithm, hashAlgorithmName, RSASignaturePadding.Pkcs1);

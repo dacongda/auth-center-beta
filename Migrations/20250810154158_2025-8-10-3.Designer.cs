@@ -3,6 +3,7 @@ using System;
 using AuthCenter.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AuthCenter.Migrations
 {
     [DbContext(typeof(AuthCenterDbContext))]
-    partial class AuthCenterDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250810154158_2025-8-10-3")]
+    partial class _20258103
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -437,6 +440,10 @@ namespace AuthCenter.Migrations
 
             modelBuilder.Entity("AuthCenter.Models.UserThirdpartInfo", b =>
                 {
+                    b.Property<string>("ThirdPartId")
+                        .HasColumnType("text")
+                        .HasColumnName("third_part_id");
+
                     b.Property<string>("ProviderName")
                         .HasColumnType("text")
                         .HasColumnName("provider_name");
@@ -445,24 +452,8 @@ namespace AuthCenter.Migrations
                         .HasColumnType("text")
                         .HasColumnName("user_id");
 
-                    b.Property<DateTime?>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("ThirdPartId")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("third_part_id");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.HasKey("ProviderName", "UserId")
+                    b.HasKey("ThirdPartId", "ProviderName", "UserId")
                         .HasName("pk_user_thirdpart_infos");
-
-                    b.HasIndex("ThirdPartId")
-                        .HasDatabaseName("ix_user_thirdpart_infos_third_part_id");
 
                     b.ToTable("user_thirdpart_infos", (string)null);
                 });
