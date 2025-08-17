@@ -46,6 +46,7 @@ namespace AuthCenter.Models
         public string? UserInfoEndpoint { get; set; }
         public string? JwksEndpoint { get; set; }
         public string? Scopes { get; set; }
+        public string? TokenType { get; set; }
 
         public UserInfoMap? UserInfoMap { get; set; }
         /**

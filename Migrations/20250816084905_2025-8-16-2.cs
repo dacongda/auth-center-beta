@@ -5,18 +5,25 @@
 namespace AuthCenter.Migrations
 {
     /// <inheritdoc />
-    public partial class _20257234 : Migration
+    public partial class _20258162 : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-
+            migrationBuilder.AddColumn<string>(
+                name: "avatar",
+                table: "user",
+                type: "text",
+                nullable: false,
+                defaultValue: "");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-
+            migrationBuilder.DropColumn(
+                name: "avatar",
+                table: "user");
         }
     }
 }

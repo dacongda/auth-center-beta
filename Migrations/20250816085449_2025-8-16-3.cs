@@ -5,24 +5,23 @@
 namespace AuthCenter.Migrations
 {
     /// <inheritdoc />
-    public partial class _20258102 : Migration
+    public partial class _20258163 : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.AddColumn<string>(
-                name: "display_name",
+                name: "token_type",
                 table: "provider",
                 type: "text",
-                nullable: false,
-                defaultValue: "");
+                nullable: true);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropColumn(
-                name: "display_name",
+                name: "token_type",
                 table: "provider");
         }
     }

@@ -5,10 +5,11 @@ using System.Text.Json.Nodes;
 
 namespace AuthCenter.IdProvider
 {
-    public class OAuth2(string clientId, string clientSecret, string tokenEndpoint, string userInfoEndpoint, string redirectUri, UserInfoMap userInfoMap) : IIdProvider
+    public class OAuth2(string clientId, string clientSecret, string tokenEndpoint, string userInfoEndpoint, string tokenType, string redirectUri, UserInfoMap userInfoMap) : IIdProvider
     {
         private readonly string _clientId = clientId;
         private readonly string _clientSecret = clientSecret;
+        private readonly string _tokenType = tokenType;
         private readonly string _tokenEndpoint = tokenEndpoint;
         private readonly string _userInfoEndpoint = userInfoEndpoint;
         private readonly string _redirectUri = redirectUri;
@@ -25,6 +26,9 @@ namespace AuthCenter.IdProvider
         {
             using (var client = new HttpClient())
             {
+                client.DefaultRequestHeaders.Add("Accept", "application/json");
+                client.DefaultRequestHeaders.Add("User-Agent", "Auth center");
+
                 var requestParams = new Dictionary<string, string>
                 {
                     {"grant_type", "authorization_code"},
@@ -56,7 +60,7 @@ namespace AuthCenter.IdProvider
                 }
 
                 var infoRequest = new HttpRequestMessage(HttpMethod.Get, _userInfoEndpoint);
-                infoRequest.Headers.Add("Authorization", $"Bearer {tokenResponse.AccessToken}");
+                infoRequest.Headers.Add("Authorization", $"{_tokenType} {tokenResponse.AccessToken}");
 
                 var infoResponse = await client.SendAsync(infoRequest);
                 var infoResponseContent = await infoResponse.Content.ReadAsStringAsync();
@@ -66,8 +70,8 @@ namespace AuthCenter.IdProvider
                 var id = infoRoot.SelectToken(_userInfoMap.Id);
                 var name = infoRoot.SelectToken(_userInfoMap.Name);
                 var preferredName = infoRoot.SelectToken(_userInfoMap.PreferredName);
-                var email = infoRoot.SelectToken(_userInfoMap.Email);
-                var phone = infoRoot.SelectToken(_userInfoMap.Phone);
+                var email = infoRoot.SelectToken(_userInfoMap.Email ?? ".email");
+                var phone = infoRoot.SelectToken(_userInfoMap.Phone == "" ? ".phone" : _userInfoMap.Phone);
 
                 return new UserInfo
                 {

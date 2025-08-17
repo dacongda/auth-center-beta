@@ -15,4 +15,11 @@
     {
         public string? AccessToken { get; set; }
     }
+
+    public class CachedUser
+    {
+        public string Id { get; set; } = "";
+        public int LoginApplication { get; set; }
+        public string LoginVia { get; set; } = "";
+    }
 }

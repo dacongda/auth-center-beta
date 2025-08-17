@@ -1,7 +1,9 @@
 ﻿using AuthCenter.Data;
+using AuthCenter.Utils;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -17,19 +19,20 @@ namespace AuthCenter.Handler
     {
         public const string BearerSchemeName = "BearerSchemeAuthorization";
         private readonly AuthCenterDbContext _authCenterDbContext;
-        private readonly HttpContext _httpContext;
-        private string _failReason;
-        private string _failReasonDescription;
+        private readonly IDistributedCache _cache;
 
-        public BearerAuthorizationHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder, AuthCenterDbContext authCenterDbContext, IHttpContextAccessor httpContextAccessor) : base(options, logger, encoder)
+        private string _failReason = "";
+        private string _failReasonDescription = "";
+
+        public BearerAuthorizationHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder, AuthCenterDbContext authCenterDbContext, IDistributedCache cache) : base(options, logger, encoder)
         {
             _authCenterDbContext = authCenterDbContext;
-            _httpContext = httpContextAccessor.HttpContext;
+            _cache = cache;
         }
 
         protected override Task<AuthenticateResult> HandleAuthenticateAsync()
         {
-            var token = Request.Headers["Authorization"].ToString();
+            var token = Request.Headers.Authorization.ToString();
 
             if (string.IsNullOrEmpty(token))
             {
@@ -56,6 +59,16 @@ namespace AuthCenter.Handler
             try
             {
                 var tokenObj = new JwtSecurityToken(headerValue.Parameter);
+                var jti = tokenObj.Claims.FirstOrDefault(c => c.Type == "jti")?.Value ?? "";
+                var tokenId = jti.Split("-")[0];
+
+                var isValid = _cache.GetString($"Login:OAuth:Token:{tokenId}");
+                if (isValid == null) {
+                    _failReason = "invalid_token";
+                    _failReasonDescription = "Token expored";
+                    return Task.FromResult(AuthenticateResult.Fail("Token expored"));
+                }
+
                 var clientId = tokenObj.Audiences.First();
                 if (clientId == null)
                 {
@@ -65,39 +78,17 @@ namespace AuthCenter.Handler
                 }
 
                 var app = _authCenterDbContext.Application.Where(app => app.ClientId == clientId).Include(p => p.Cert).First();
-                if (app == null)
+
+                try { 
+                    _ = TokenUtil.ValidateToken(headerValue.Parameter!, app, Context.Request.GetDisplayUrl());
+                } catch (Exception ex)
                 {
                     _failReason = "invalid_token";
-                    _failReasonDescription = "App not exist";
+                    _failReasonDescription = ex.Message;
                     return Task.FromResult(AuthenticateResult.Fail("app不存在"));
                 }
 
-                if (app.Cert == null)
-                {
-                    _failReason = "invalid_token";
-                    _failReasonDescription = "Cert error";
-                    return Task.FromResult(AuthenticateResult.Fail("证书错误"));
-                }
-
-                var parsedSk = app.Cert.ToSecurityKey();
-
-                var validateParameter = new TokenValidationParameters()
-                {
-                    ValidateLifetime = true,
-                    ValidateAudience = true,
-                    ValidateIssuer = false,
-                    ValidateIssuerSigningKey = true,
-                    ValidIssuer = _httpContext.Request.GetDisplayUrl(),
-                    ValidAudience = app.ClientId,
-                    IssuerSigningKey = parsedSk,
-                    ClockSkew = TimeSpan.Zero//校验过期时间必须加此属性
-                };
-
-                JwtSecurityTokenHandler handler = new JwtSecurityTokenHandler();
-
-                _ = new JwtSecurityTokenHandler().ValidateToken(headerValue.Parameter, validateParameter, out SecurityToken validatedToken);
-
-                var user = _authCenterDbContext.User.Where(user => user.Number == tokenObj.Subject).Include(p => p.Group).First();
+                var user = _authCenterDbContext.User.Where(user => user.Id == tokenObj.Subject).Include(p => p.Group).First();
                 if (user == null)
                 {
                     _failReason = "invalid_token";
@@ -135,9 +126,10 @@ namespace AuthCenter.Handler
                 claimList.Add(new(ClaimTypes.Name, user.Name));
                 principal.AddIdentity(new(gi, claimList));
 
-                _httpContext.Items["user"] = user;
-                _httpContext.Items["application"] = app;
-                _httpContext.Items["scope"] = scope;
+                Context.Items["user"] = user;
+                Context.Items["application"] = app;
+                Context.Items["scope"] = scope;
+                Context.Items["tokenId"] = tokenId;
 
                 return Task.FromResult(AuthenticateResult.Success(new(principal, BearerSchemeName)));
             }

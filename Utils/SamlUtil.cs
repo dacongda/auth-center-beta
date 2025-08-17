@@ -76,9 +76,9 @@ namespace AuthCenter.Utils
             {
                 attributeStatement.Add(GetAttribute("email", user.Phone));
             }
-            if (user.Number != null)
+            if (user.Id != null)
             {
-                attributeStatement.Add(GetAttribute("username", user.Number));
+                attributeStatement.Add(GetAttribute("username", user.Id));
             }
             if (user.Name != null)
             {
@@ -131,7 +131,7 @@ namespace AuthCenter.Utils
             XmlElement xeAssertion = doc.DocumentElement.SelectSingleNode("saml:Assertion", ns) as XmlElement;
 
             SignedXml? signedXml = null;
-            var x509Cert = application.Cert.ToX509Certificate2();
+            var x509Cert = application.Cert!.ToX509Certificate2();
             if (application.Cert.CryptoAlgorithm == "RS")
             {
                 signedXml = new(xeAssertion)
@@ -209,9 +209,9 @@ namespace AuthCenter.Utils
         {
             var byteSamlRequest = Convert.FromBase64String(samlRequest);
 
-            MemoryStream compressed = new MemoryStream(byteSamlRequest);
-            MemoryStream decompressed = new MemoryStream();
-            DeflateStream deflateStream = new DeflateStream(compressed, CompressionMode.Decompress);
+            MemoryStream compressed = new(byteSamlRequest);
+            MemoryStream decompressed = new();
+            DeflateStream deflateStream = new(compressed, CompressionMode.Decompress);
             deflateStream.CopyTo(decompressed);
             var decodedSamlRequestByte = decompressed.ToArray();
             var decodedSamlRequest = Encoding.UTF8.GetString(decodedSamlRequestByte);

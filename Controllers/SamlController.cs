@@ -22,11 +22,13 @@ namespace AuthCenter.Controllers
                 frontEndUrl = url;
             }
 
-            var application = _authCenterDbContext.Application.Where(app => app.ClientId == clientId).Include(app => app.Cert).First();
+            var rawClientId = clientId.Split("-")[0];
+            var application = _authCenterDbContext.Application.Where(app => app.ClientId == rawClientId).Include(app => app.Cert).FirstOrDefault();
             if (application == null)
             {
                 return new NotFoundResult();
             }
+            application.ClientId = clientId;
 
             var metadata = Utils.SamlUtil.GetSAMLMetadata(url, frontEndUrl, application);
 

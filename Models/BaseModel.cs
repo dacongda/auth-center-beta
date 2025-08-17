@@ -2,12 +2,10 @@
 
 namespace AuthCenter.Models
 {
-    public class BaseModel
+    public class BaseModel : BaseModelWithoutId
     {
         [Key]
         public int Id { get; set; }
-        public DateTime? CreatedAt { get; set; }
-        public DateTime? UpdatedAt { get; set; }
         //public DateTime? DeleteAt { get; set; }
     }
 

@@ -22,6 +22,10 @@ namespace AuthCenter.Models
         /// </summary>
         public string[] DefaultRoles { get; set; } = [];
         /// <summary>
+        /// 禁止注册
+        /// </summary>
+        public bool DisableSignup { get; set; } = false;
+        /// <summary>
         /// 上级Id
         /// </summary>
         public int ParentId { get; set; } = 0;

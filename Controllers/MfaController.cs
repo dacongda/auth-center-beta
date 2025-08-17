@@ -159,7 +159,7 @@ namespace AuthCenter.Controllers
             }
 
 
-            var effected = await _authCenterDbContext.User.Where(u => u.Number == user.Number).ExecuteUpdateAsync(
+            var effected = await _authCenterDbContext.User.Where(u => u.Id == user.Id).ExecuteUpdateAsync(
                 s => s.SetProperty(u => u.TotpSecret, user.TotpSecret)
                 .SetProperty(u => u.EnableTotpMfa, user.EnableTotpMfa)
                 .SetProperty(u => u.EnableEmailMfa, user.EnableEmailMfa)
@@ -191,7 +191,7 @@ namespace AuthCenter.Controllers
 
             if (preferedMfa == "Email" && user.EnableEmailMfa || preferedMfa == "Phone" && user.EnablePhoneMfa || preferedMfa == "TOTP" && user.EnableTotpMfa)
             {
-                var effected = await _authCenterDbContext.User.Where(u => u.Number == user.Number).ExecuteUpdateAsync(
+                var effected = await _authCenterDbContext.User.Where(u => u.Id == user.Id).ExecuteUpdateAsync(
                s => s.SetProperty(u => u.PreferredMfaType, preferedMfa));
 
                 if (effected == 0)
@@ -238,7 +238,7 @@ namespace AuthCenter.Controllers
                 return JSONResult.ResponseError("不可用的类型");
             }
 
-            var effected = await _authCenterDbContext.User.Where(u => u.Number == user.Number).ExecuteUpdateAsync(
+            var effected = await _authCenterDbContext.User.Where(u => u.Id == user.Id).ExecuteUpdateAsync(
                         s => s.SetProperty(u => u.TotpSecret, user.TotpSecret)
                         .SetProperty(u => u.EnableTotpMfa, user.EnableTotpMfa)
                         .SetProperty(u => u.EnableEmailMfa, user.EnableEmailMfa)

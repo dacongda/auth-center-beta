@@ -1,5 +1,6 @@
 ﻿using AuthCenter.Data;
 using AuthCenter.Models;
+using AuthCenter.ViewModels;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
@@ -16,30 +17,27 @@ namespace AuthCenter.Handler
 
         private readonly IDistributedCache _cache;
         private readonly AuthCenterDbContext _authCenterDbContext;
-        private readonly HttpContext _httpContext;
 
         private int _failCode = StatusCodes.Status403Forbidden;
 
-        public UserRoleAuthorizationHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder, IDistributedCache cache, AuthCenterDbContext authCenterDbContext, IHttpContextAccessor httpContextAccessor) : base(options, logger, encoder)
+        public UserRoleAuthorizationHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder, IDistributedCache cache, AuthCenterDbContext authCenterDbContext) : base(options, logger, encoder)
         {
             _cache = cache;
             _authCenterDbContext = authCenterDbContext;
-            _httpContext = httpContextAccessor.HttpContext;
         }
 
         public const string UserRoleSchemeName = "UserRoleAuthorization";
 
         protected override Task<AuthenticateResult> HandleAuthenticateAsync()
         {
-            var token = Request.Headers["Authorization"].ToString();
-
+            var token = Request.Headers.Authorization.ToString();
             if (string.IsNullOrEmpty(token))
             {
                 _failCode = StatusCodes.Status401Unauthorized;
                 return Task.FromResult(AuthenticateResult.Fail("token不能为空"));
             }
 
-            string userStr = _cache.GetString(token) ?? "";
+            string userStr = _cache.GetString($"Login:Auth:{token}") ?? "";
             if (string.IsNullOrEmpty(userStr))
             {
                 _failCode = StatusCodes.Status401Unauthorized;
@@ -47,18 +45,18 @@ namespace AuthCenter.Handler
             }
 
 
-            User? user = JsonSerializer.Deserialize<User>(userStr);
+            var user = JsonSerializer.Deserialize<CachedUser>(userStr);
             var dbUser = _authCenterDbContext.User.Find(user?.Id);
 
-            if (dbUser is null)
+            if (dbUser is null || user is null)
             {
                 _failCode = StatusCodes.Status401Unauthorized;
                 return Task.FromResult(AuthenticateResult.Fail("token错误"));
             }
 
-            dbUser.loginApplication = user.loginApplication;
+            dbUser.loginApplication = user.LoginApplication;
 
-            var gi = new GenericIdentity(dbUser.Number);
+            var gi = new GenericIdentity(dbUser.Id);
             var principal = new ClaimsPrincipal();
 
             var claimList = new List<Claim>();
@@ -75,7 +73,7 @@ namespace AuthCenter.Handler
 
             principal.AddIdentity(new(gi, claimList));
 
-            _httpContext.Items["user"] = dbUser;
+            Context.Items["user"] = dbUser;
 
             return Task.FromResult(AuthenticateResult.Success(new(principal, UserRoleSchemeName)));
         }

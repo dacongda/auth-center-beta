@@ -6,19 +6,25 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace AuthCenter.Models
 {
-    [Index(nameof(Number), IsUnique = true)]
-    public class User : BaseModel
+    [PrimaryKey(nameof(Id))]
+    [Index(nameof(Email), IsUnique = true)]
+    [Index(nameof(Phone), IsUnique = true)]
+    public class User : BaseModelWithoutId
     {
         /// <summary>
         /// 用户名
         /// </summary>
         [Required]
-        public required string Name { get; set; }
+        public string Name { get; set; } = string.Empty;
         /// <summary>
         /// 用户编号/ID
         /// </summary>
         [Required]
-        public required string Number { get; set; }
+        public string Id { get; set; } = string.Empty;
+        /// <summary>
+        /// 用户头像
+        /// </summary>
+        public string Avatar { get; set; } = string.Empty;
         /// <summary>
         /// 用户角色
         /// </summary>

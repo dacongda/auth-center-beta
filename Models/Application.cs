@@ -27,15 +27,15 @@ namespace AuthCenter.Models
         public string[]? Scopes { get; set; }
         [Required]
         public int CertId { get; set; }
-        public int GroupId { get; set; }
+        public int[] GroupIds { get; set; } = [];
         public string[]? RedirectUrls { get; set; }
         public int ExpiredSecond { get; set; }
-        public string[]? SamlAudiences { get; set; }
+        public int AccessExpiredSecond { get; set; }
+        public string[] SamlAudiences { get; set; } = [];
         public bool SamlResponseCompress { get; set; }
         public bool SamlEncrypt { get; set; }
         public List<ProviderItem> ProviderItems { get; set; } = [];
         public Cert? Cert { get; set; }
-        public Group? Group { get; set; }
         [NotMapped]
         public List<Provider> Providers { get; set; } = [];
 

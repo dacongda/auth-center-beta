@@ -18,7 +18,7 @@ namespace AuthCenter.Controllers
         private readonly AuthCenterDbContext _authCenterDbContext = authCenterDbContext;
 
         [HttpGet("getGroupTree", Name = "GetGroupTree")]
-        [Authorize(Roles = "admin")]
+        [Authorize(Roles = "admin,user")]
         public JSONResult GetGroupTree(int? topGroupId, string? returnType = "tree")
         {
             var query = _authCenterDbContext.Group.AsQueryable();
@@ -173,6 +173,12 @@ namespace AuthCenter.Controllers
         [AllowAnonymous]
         public JSONResult GetGroupWithApplication(string groupName, string? clientId)
         {
+            if (clientId != null)
+            {
+                var splitedClient = clientId.Split("-", 2);
+                groupName = splitedClient.Length == 2 ? splitedClient[1] : groupName;
+            }
+
             var group = _authCenterDbContext.Group.Where(g => g.Name == groupName).AsNoTracking().FirstOrDefault();
             if (group == null)
             {
@@ -289,6 +295,7 @@ namespace AuthCenter.Controllers
                         .Where(g => g.Id == group.Id).ExecuteUpdate(s =>
                     s.SetProperty(g => g.Name, group.Name)
                     .SetProperty(g => g.DefaultRoles, group.DefaultRoles)
+                    .SetProperty(g => g.DefaultApplicationId, group.DefaultApplicationId)
                     .SetProperty(g => g.ParentId, group.ParentId)
                     .SetProperty(g => g.TopId, group.TopId)
                     .SetProperty(g => g.ParentChain, group.ParentChain)

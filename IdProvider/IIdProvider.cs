@@ -16,11 +16,11 @@ namespace AuthCenter.IdProvider
     {
         public Task<UserInfo> getUserInfo(string code);
 
-        public static IIdProvider GetIdProvider(Provider provider,string redirectUri, IDistributedCache cache)
+        public static IIdProvider GetIdProvider(Provider provider, string redirectUri, IDistributedCache cache)
         {
             if (provider.SubType == "OAuth2")
             {
-                return new OAuth2(provider.ClientId, provider.ClientSecret, provider.TokenEndpoint, provider.UserInfoEndpoint, redirectUri, provider.UserInfoMap);
+                return new OAuth2(provider.ClientId ?? "", provider.ClientSecret ?? "", provider.TokenEndpoint ?? "", provider.UserInfoEndpoint ?? "", provider.TokenType ?? "", redirectUri, provider.UserInfoMap!);
             }
 
             throw new NotImplementedException();

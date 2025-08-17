@@ -23,7 +23,7 @@ namespace AuthCenter.Controllers
         [HttpGet("getUserCredentials", Name = "GetUserCedentials")]
         public async Task<JSONResult> GetUserCredentials()
         {
-            var creds = await _authCenterDbContext.WebAuthnCredential.Where(c => c.UserId == User.Identity.Name).Select(c => new {c.Name, c.Id}).ToListAsync();
+            var creds = await _authCenterDbContext.WebAuthnCredential.Where(c => c.UserId == User.Identity.Name).Select(c => new { c.Name, c.Id }).ToListAsync();
             return JSONResult.ResponseOk(creds);
         }
 
@@ -62,8 +62,8 @@ namespace AuthCenter.Controllers
             var user = new Fido2User
             {
                 DisplayName = dbUser.Name,
-                Name = dbUser.Number,
-                Id = Encoding.UTF8.GetBytes(dbUser.Number),
+                Name = dbUser.Id,
+                Id = Encoding.UTF8.GetBytes(dbUser.Id),
             };
 
             var options = fido2.RequestNewCredential(new RequestNewCredentialParams
@@ -149,12 +149,12 @@ namespace AuthCenter.Controllers
 
         [HttpGet("getAssertionOptions", Name = "GetAssertion")]
         [AllowAnonymous]
-        async public Task<JSONResult> GetAssertionOptions(string? number)
+        async public Task<JSONResult> GetAssertionOptions(string? id)
         {
             var existingCredentials = new List<PublicKeyCredentialDescriptor>();
-            if (number is not null)
+            if (id is not null)
             {
-                var creds = await _authCenterDbContext.WebAuthnCredential.Where(c => c.UserId == number).ToListAsync();
+                var creds = await _authCenterDbContext.WebAuthnCredential.Where(c => c.UserId == id).ToListAsync();
                 existingCredentials = (from cred in creds select cred.Descriptor).ToList();
             }
 
@@ -229,7 +229,7 @@ namespace AuthCenter.Controllers
                 return JSONResult.ResponseError("无此证书");
             }
 
-            var user = await _authCenterDbContext.User.FirstAsync(u => u.Number == cred.UserId);
+            var user = await _authCenterDbContext.User.FirstAsync(u => u.Id == cred.UserId);
 
             IsUserHandleOwnerOfCredentialIdAsync callback = static async (args, cancellationToken) =>
             {
@@ -250,7 +250,10 @@ namespace AuthCenter.Controllers
 
             var webAuthLoginId = Guid.NewGuid().ToString("N");
             _logger.LogInformation(cachePrefix + webAuthLoginId);
-            await _cache.SetStringAsync(cachePrefix + webAuthLoginId, user.Number, token: cancellationToken);
+            await _cache.SetStringAsync(cachePrefix + webAuthLoginId, user.Id, new DistributedCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(2),
+            }, token: cancellationToken);
 
             return JSONResult.ResponseOk(new
             {

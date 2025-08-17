@@ -14,20 +14,18 @@ namespace AuthCenter.Handler
     public class BasicAuthorizationHandler : AuthenticationHandler<AuthenticationSchemeOptions>
     {
         private readonly AuthCenterDbContext _authCenterDbContext;
-        private readonly HttpContext _httpContext;
         public BasicAuthorizationHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder, AuthCenterDbContext authCenterDbContext, IHttpContextAccessor httpContextAccessor) : base(options, logger, encoder)
         {
             _authCenterDbContext = authCenterDbContext;
-            _httpContext = httpContextAccessor.HttpContext;
         }
 
         public const string BasicSchemeName = "BasicAuthorization";
-        private string _failReason;
-        private string _failReasonDescription;
+        private string _failReason = "";
+        private string _failReasonDescription = "";
 
         protected override Task<AuthenticateResult> HandleAuthenticateAsync()
         {
-            var basic = Request.Headers["Authorization"].ToString();
+            var basic = Request.Headers.Authorization.ToString();
             if (string.IsNullOrEmpty(basic))
             {
                 _failReason = "invalid_client";
@@ -79,7 +77,7 @@ namespace AuthCenter.Handler
 
                 principal.AddIdentity(new(gi, claimList));
 
-                _httpContext.Items["application"] = application;
+                Context.Items["application"] = application;
 
                 return Task.FromResult(AuthenticateResult.Success(new(principal, BasicSchemeName)));
             }
@@ -100,8 +98,8 @@ namespace AuthCenter.Handler
             };
 
 
-            _httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
-            return _httpContext.Response.WriteAsync(JsonConvert.SerializeObject(errorResp));
+            Response.StatusCode = StatusCodes.Status400BadRequest;
+            return Response.WriteAsync(JsonConvert.SerializeObject(errorResp));
             //Response.Headers.Append("WWW-Authenticate", $"Bearer error=\"{_failReason}\", error_description=\"{_failReasonDescription ?? ""}\"");
             //return base.HandleChallengeAsync(properties);
         }

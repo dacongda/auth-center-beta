@@ -4,14 +4,21 @@ using AuthCenter.Handler;
 using AuthCenter.Models;
 using AuthCenter.Utils;
 using AuthCenter.ViewModels;
+using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Spreadsheet;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.NET.StringTools;
+using NPOI.XSSF.UserModel;
+using System.ComponentModel.DataAnnotations;
 using System.Linq.Expressions;
+using System.Reflection;
 using System.Reflection.Metadata;
 using System.Text.Json;
 
@@ -41,11 +48,11 @@ namespace AuthCenter.Controllers
 
             var countQuery = _authCenterDbContext.User.AsQueryable();
             var query = _authCenterDbContext.User.Include(u => u.Group)
-                .Select(user => new { user.Id, user.Number, user.Email, user.Name, user.Phone, user.GroupId, groupName = user.Group.Name });
+                .Select(user => new { user.Id, user.Email, user.Name, user.Phone, user.GroupId, groupName = user.Group!.Name, isAdmin = user.IsAdmin });
             if (parentChain != null)
             {
                 var groupIds = (from g in _authCenterDbContext.Group where g.ParentChain.StartsWith(parentChain + '/') || g.ParentChain == parentChain select g.Id).ToList();
-                countQuery = countQuery.Where(u => groupIds.Contains(u.Id));
+                countQuery = countQuery.Where(u => groupIds.Contains(u.GroupId ?? 0));
                 query = query.Where(u => groupIds.Contains(u.GroupId ?? 0));
             }
             var count = countQuery.Count();
@@ -56,7 +63,7 @@ namespace AuthCenter.Controllers
 
         [HttpGet(Name = "GetUser")]
         [Authorize(Roles = "admin")]
-        public JSONResult Get(int id)
+        public JSONResult Get(string id)
         {
             var user = _authCenterDbContext.User.Where(u => u.Id == id).First();
             if (user == null)
@@ -75,16 +82,114 @@ namespace AuthCenter.Controllers
 
             user.Password = BCrypt.Net.BCrypt.HashPassword(user.Password);
 
-            var state = _authCenterDbContext.User.Upsert(user).On(c => c.Number).Run();
+            var state = _authCenterDbContext.User.Upsert(user).On(c => c.Id).Run();
 
             return JSONResult.ResponseOk("成功");
+        }
+
+        [HttpPost("importUser", Name = "ImportUser")]
+        [Authorize(Roles = "admin")]
+        public JSONResult ImportUser([FromForm] int groupId)
+        {
+            var file = Request.Form.Files[0];
+            var workbook = new XSSFWorkbook(file.OpenReadStream());
+            if (workbook == null)
+            {
+                return JSONResult.ResponseError("空Excel");
+            }
+            var sheet = workbook.GetSheetAt(0);
+
+            var headerRow = sheet.GetRow(sheet.FirstRowNum);
+            Dictionary<string, int> headerDict = [];
+            for (var i = 0; i < headerRow.LastCellNum; i++)
+            {
+                var cellVal = headerRow.GetCell(i).ToString();
+                if (String.IsNullOrEmpty(cellVal)) {
+                    continue;
+                }
+
+                headerDict.Add(cellVal, i);
+            }
+
+            var userType = typeof(User);
+            var fields = userType.GetProperties();
+
+            var addUserList = new List<User>();
+            var failUserList = new List<User>();
+
+            for(var i = 1; i <= sheet.LastRowNum; i++)
+            {
+                var row = sheet.GetRow(i);
+                var user = new User();
+
+                foreach (var field in fields)
+                {
+                    if (!headerDict.ContainsKey(field.Name))
+                    {
+                        continue;
+                    }
+
+                    var key = headerDict[field.Name];
+
+                    object? cellVal = "";
+                    if (field.PropertyType == typeof(string))
+                    {
+                        cellVal = row.GetCell(key)?.ToString() ?? null;
+                    } else if(field.PropertyType == typeof(int) || field.PropertyType == typeof(int?))
+                    {
+                        cellVal = (int)row.GetCell(key).NumericCellValue;
+                    } else if(field.PropertyType == typeof(bool) || field.PropertyType == typeof(bool?))
+                    {
+                        cellVal = row.GetCell(key).ToString() == "T";
+                    } else if(field.PropertyType == typeof(string[]))
+                    {
+                        var cellStr = row.GetCell(key).ToString() ?? "";
+                        if (cellStr == "")
+                        {
+                            cellVal = Array.Empty<string>();
+                        } else
+                        {
+                            cellVal = cellStr.Split(",");
+                        }
+                            
+                    } else
+                    {
+                        continue;
+                    }
+
+                    field.SetValue(user, cellVal);
+                }
+
+                if (String.IsNullOrEmpty(user.Id)) continue;
+                user.GroupId = groupId;
+
+                var context = new ValidationContext(user);
+                var validationResults = new List<ValidationResult>();
+                bool isValid = Validator.TryValidateObject(user, context, validationResults, true);
+
+                if (!isValid)
+                {
+                    failUserList.Add(user);
+                    continue;
+                }
+
+                addUserList.Add(user);
+            }
+
+            var upsertedUser = _authCenterDbContext.User.UpsertRange(addUserList).On(u => u.Id).RunAndReturn();
+
+            return JSONResult.ResponseOk(new
+            {
+                SuccessImportList = upsertedUser.Select(u => new { u.Id, u.Name, u.Email, u.Phone, u.Roles, u.IsAdmin}),
+                FailImportList = failUserList.Select(u => new { u.Id, u.Name, u.Email, u.Phone, u.Roles, u.IsAdmin }),
+            });
         }
 
         [HttpPut(Name = "UpdateUser")]
         [Authorize(Roles = "admin,user")]
         public JSONResult Update(User user)
         {
-            if (User.IsInRole("user") && User.Identity?.Name != user.Number)
+            if (User.IsInRole("user") && User.Identity?.Name != user.Id)
             {
                 return JSONResult.ResponseError("无权修改");
             }
@@ -95,7 +200,7 @@ namespace AuthCenter.Controllers
             if (user.IsAdmin)
             {
                 setPropertyCalls = setPropertyCalls.Append(s =>
-                        s.SetProperty(u => u.Number, user.Number)
+                        s.SetProperty(u => u.Id, user.Id)
                         .SetProperty(u => u.Roles, user.Roles)
                         .SetProperty(u => u.Email, user.Email)
                         .SetProperty(u => u.Phone, user.Phone)
@@ -103,7 +208,7 @@ namespace AuthCenter.Controllers
                         .SetProperty(u => u.IsAdmin, user.IsAdmin));
             }
 
-            _authCenterDbContext.User.Where(u => u.Number == user.Number).ExecuteUpdate(setPropertyCalls);
+            _authCenterDbContext.User.Where(u => u.Id == user.Id).ExecuteUpdate(setPropertyCalls);
 
             return JSONResult.ResponseOk("成功");
         }
@@ -112,15 +217,15 @@ namespace AuthCenter.Controllers
         public async Task<JSONResult> UpdateSafeInfo(ModifySafeInfoRequest request)
         {
             var userId = await _cache.GetStringAsync($"Auth:Verify:{request.Type}:{request.VerifyCode}");
-            if (userId != User.Identity.Name)
+            if (userId != User.Identity!.Name)
             {
                 return JSONResult.ResponseError("认证失效");
             }
 
             var curUser = HttpContext.Items["user"] as User;
 
-            var app = await _authCenterDbContext.Application.FindAsync(curUser.loginApplication);
-            var providerItem = (from pItem in app.ProviderItems where pItem.Type == request.Type select pItem).FirstOrDefault();
+            var app = await _authCenterDbContext.Application.FindAsync(curUser!.loginApplication);
+            var providerItem = (from pItem in app?.ProviderItems where pItem.Type == request.Type select pItem).FirstOrDefault();
 
             if (app == null)
             {
@@ -157,7 +262,7 @@ namespace AuthCenter.Controllers
                     }
                 }
 
-                _authCenterDbContext.User.Where(u => u.Number == curUser.Number).ExecuteUpdate(s => s.SetProperty(u => u.Email, request.Email).SetProperty(u => u.EmailVerified, true));
+                _authCenterDbContext.User.Where(u => u.Id == curUser.Id).ExecuteUpdate(s => s.SetProperty(u => u.Email, request.Email).SetProperty(u => u.EmailVerified, true));
                 return JSONResult.ResponseOk();
             }
             else if (request.Type == "Phone")
@@ -168,13 +273,13 @@ namespace AuthCenter.Controllers
                     return JSONResult.ResponseError("尚未实现");
                 }
 
-                _authCenterDbContext.User.Where(u => u.Number == curUser.Number).ExecuteUpdate(s => s.SetProperty(u => u.Phone, request.Phone).SetProperty(u => u.PhoneVerified, true));
+                _authCenterDbContext.User.Where(u => u.Id == curUser.Id).ExecuteUpdate(s => s.SetProperty(u => u.Phone, request.Phone).SetProperty(u => u.PhoneVerified, true));
                 return JSONResult.ResponseOk();
             }
             else if (request.Type == "Password")
             {
                 var encryptedPassword = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
-                _authCenterDbContext.User.Where(u => u.Number == curUser.Number).ExecuteUpdate(s => s.SetProperty(u => u.Password, encryptedPassword));
+                _authCenterDbContext.User.Where(u => u.Id == curUser.Id).ExecuteUpdate(s => s.SetProperty(u => u.Password, encryptedPassword));
                 return JSONResult.ResponseOk();
             }
 
@@ -185,7 +290,7 @@ namespace AuthCenter.Controllers
         [Authorize(Roles = "admin,user")]
         public async Task<JSONResult> UnBindThirdPart(UserThirdpartInfo userThirdpartInfo)
         {
-            if (userThirdpartInfo.UserId != User.Identity.Name && !User.IsInRole("admin"))
+            if (userThirdpartInfo.UserId != User.Identity!.Name && !User.IsInRole("admin"))
             {
                 return JSONResult.ResponseError("无权操作");
             }
@@ -203,9 +308,9 @@ namespace AuthCenter.Controllers
 
         [HttpDelete(Name = "DeleteUser")]
         [Authorize(Roles = "admin")]
-        public JSONResult Delete(int id)
+        public JSONResult Delete(string id)
         {
-            if (id == 1)
+            if (id == "admin")
             {
                 return JSONResult.ResponseError("无法删除主管理，请尝试禁用功能");
             }
@@ -228,7 +333,7 @@ namespace AuthCenter.Controllers
                 Response.StatusCode = 401;
                 return JSONResult.ResponseError("用户信息无效");
             }
-            var user = _authCenterDbContext.User.Where(u => u.Number == User.Identity.Name).Include(p => p.Group).FirstOrDefault();
+            var user = _authCenterDbContext.User.Where(u => u.Id == User.Identity.Name).Include(p => p.Group).FirstOrDefault();
             if (user == null)
             {
                 Response.StatusCode = 401;
@@ -277,7 +382,7 @@ namespace AuthCenter.Controllers
                 return JSONResult.ResponseError("用户信息无效");
             }
             var user = HttpContext.Items["user"] as User;
-            var application = _authCenterDbContext.Application.Find(user.loginApplication);
+            var application = _authCenterDbContext.Application.Find(user!.loginApplication);
             if (application == null)
             {
                 Response.StatusCode = 401;
@@ -303,7 +408,7 @@ namespace AuthCenter.Controllers
             {
                 realName = user.Name,
                 roles = new List<string>() { user.IsAdmin ? "admin" : "user" },
-                userId = user.Number,
+                userId = user.Id,
                 username = user.Name,
                 id = user.Id,
                 loginApplication = application.getMaskedApplication()
@@ -323,7 +428,7 @@ namespace AuthCenter.Controllers
 
             return Json(new
             {
-                sub = user.Number,
+                sub = user.Id,
                 name = user.Name,
                 email = user.Email,
                 email_verified = user.EmailVerified

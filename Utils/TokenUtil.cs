@@ -1,4 +1,5 @@
 ﻿using AuthCenter.Models;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -14,31 +15,30 @@ namespace AuthCenter.Utils
             public string? RefreshToken;
         }
 
-        public static JwtTokenPack GenerateCodeToken(Cert cert, User user, Application application, string url, string scopes, string? nonce)
+        public static JwtTokenPack GenerateCodeToken(string tokenId, Cert cert, User user, Application application, string url, string scopes, string? nonce)
         {
             var scopeList = scopes.Split(' ');
             var allowedScope = application.Scopes?.Intersect(scopeList).ToArray() ?? [];
 
             var certKey = cert.ToSecurityKey();
-            var signTp = cert.CryptoAlgorithm + cert.CryptoSHASize.ToString();
+            //var signTp = cert.CryptoAlgorithm + cert.CryptoSHASize.ToString();
 
-            var alogo = $"{cert.CryptoAlgorithm}{cert.CryptoSHASize}";
+            //var alogo = $"{cert.CryptoAlgorithm}{cert.CryptoSHASize}";
             var signingCredentials = new SigningCredentials(certKey, $"{cert.CryptoAlgorithm}{cert.CryptoSHASize}");
 
             return new JwtTokenPack
             {
-                IdToken = GenerateIdToken(user, application, signingCredentials, allowedScope, url, nonce),
-                AccessToken = GenerateToken(user, application, signingCredentials, "access_token", allowedScope, url, nonce),
-                RefreshToken = GenerateToken(user, application, signingCredentials, "refresh_token", allowedScope, url, nonce)
+                IdToken = GenerateIdToken($"{tokenId}-id_token", user, application, signingCredentials, allowedScope, url, nonce),
+                AccessToken = GenerateToken($"{tokenId}-access_token", user, application, signingCredentials, "access_token", allowedScope, url, nonce),
+                RefreshToken = GenerateToken($"{tokenId}-refresh_token", user, application, signingCredentials, "refresh_token", allowedScope, url, nonce)
             };
         }
 
-        public static string GenerateIdToken(User user, Application application, SigningCredentials signingCredentials, string[] scopes, string url, string? nonce)
+        public static string GenerateIdToken(string tokenId, User user, Application application, SigningCredentials signingCredentials, string[] scopes, string url, string? nonce)
         {
-            var jtiId = Guid.NewGuid();
             var claims = new List<Claim> {
-                new ("sub", user.Number) ,
-                new ("jti", jtiId.ToString()),
+                new ("sub", user.Id) ,
+                new ("jti", tokenId),
                 new ("tokenType", "id_token"),
                 new ("iat", DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
             };
@@ -79,12 +79,11 @@ namespace AuthCenter.Utils
             return new JwtSecurityTokenHandler().WriteToken(jwtToken);
         }
 
-        public static string GenerateToken(User user, Application application, SigningCredentials signingCredentials, string tokenType, string[] scopes, string url, string? nonce)
+        public static string GenerateToken(string tokenId, User user, Application application, SigningCredentials signingCredentials, string tokenType, string[] scopes, string url, string? nonce)
         {
-            var jtiId = Guid.NewGuid();
             var claims = new List<Claim> {
-                new ("sub", user.Number) ,
-                new ("jti", jtiId.ToString()),
+                new ("sub", user.Id) ,
+                new ("jti", tokenId),
                 new ("scope", string.Join(" ",scopes)),
                 new ("tokenType", tokenType),
                 new ("iat", DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
@@ -95,16 +94,55 @@ namespace AuthCenter.Utils
                 claims.Add(new("nonce", nonce.ToString()));
             }
 
+            var expiredTime = DateTime.Now;
+            if (tokenType == "access_token")
+            {
+                expiredTime.AddSeconds(application.AccessExpiredSecond);
+            }
+            else
+            {
+                expiredTime.AddSeconds(application.ExpiredSecond);
+            }
+
             var jwtToken = new JwtSecurityToken(
                  issuer: url,
                  audience: application.ClientId,
                  claims: claims,
                  notBefore: DateTime.Now,
-                 expires: DateTime.Now.AddSeconds(application.ExpiredSecond),
+                 expires: expiredTime,
                  signingCredentials
                 );
 
             return new JwtSecurityTokenHandler().WriteToken(jwtToken);
+        }
+
+        public static ClaimsPrincipal ValidateToken(string token, Application? app, string url)
+        {
+            if (app == null)
+            {
+                throw new ArgumentNullException("App not exist");
+            }
+
+            if (app.Cert == null)
+            {
+                throw new ArgumentNullException("Cert not exist");
+            }
+
+            var parsedSk = app.Cert.ToSecurityKey();
+
+            var validateParameter = new TokenValidationParameters()
+            {
+                ValidateLifetime = true,
+                ValidateAudience = true,
+                ValidateIssuer = false,
+                ValidateIssuerSigningKey = true,
+                ValidIssuer = url,
+                ValidAudience = app.ClientId,
+                IssuerSigningKey = parsedSk,
+                ClockSkew = TimeSpan.Zero//校验过期时间必须加此属性
+            };
+
+            return new JwtSecurityTokenHandler().ValidateToken(token, validateParameter, out SecurityToken validatedToken);
         }
     }
 }

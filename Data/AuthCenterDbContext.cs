@@ -35,19 +35,28 @@ namespace AuthCenter.Data
         public DbSet<Provider> Provider { get; set; } = default!;
         public DbSet<WebAuthnCredential> WebAuthnCredential { get; set; } = default!;
         public DbSet<UserThirdpartInfo> UserThirdpartInfos { get; set; } = default!;
+        public DbSet<UserSession> UserSessions { get; set; } = default!;
 
 
         public override int SaveChanges()
         {
-            var entityEntries = ChangeTracker.Entries().ToList();
-            foreach (var entry in entityEntries)
-            {
-                if (entry.State == EntityState.Added && !entry.Metadata.IsOwned())
-                    Entry(entry.Entity).Property(nameof(BaseModel.CreatedAt)).CurrentValue = DateTime.UtcNow;
+            //var entityEntries = ChangeTracker.Entries().ToList();
+            //foreach (var entry in entityEntries)
+            //{
+            //    if (entry.State == EntityState.Added && !entry.Metadata.IsOwned() && entry.Entity is BaseModel)
+            //        Entry(entry.Entity).Property(nameof(BaseModel.CreatedAt)).CurrentValue = DateTime.UtcNow;
 
-                if (entry.State == EntityState.Modified && !entry.Metadata.IsOwned())
-                    Entry(entry.Entity).Property(nameof(BaseModel.UpdatedAt)).CurrentValue = DateTime.UtcNow;
-            }
+            //    if (entry.State == EntityState.Modified && !entry.Metadata.IsOwned() && entry.Entity is BaseModel)
+            //        Entry(entry.Entity).Property(nameof(BaseModel.UpdatedAt)).CurrentValue = DateTime.UtcNow;
+            //}
+
+            ChangeTracker.Entries().Where(e => e.State == EntityState.Added && (e.Entity is BaseModel)).ToList()
+                .ForEach(e => ((BaseModel)e.Entity).CreatedAt = DateTime.UtcNow);
+
+            ChangeTracker.Entries().Where(e => e.State == EntityState.Modified && (e.Entity is BaseModel)).ToList()
+                .ForEach(e => ((BaseModel)e.Entity).UpdatedAt = DateTime.UtcNow);
+
+
             return base.SaveChanges();
         }
 
@@ -61,19 +70,18 @@ namespace AuthCenter.Data
                 .IsRequired(false);
 
             // 群组默认应用一对一
-            modelBuilder.Entity<Group>()
-                .HasOne(e => e.DefaultApplication)
-                .WithOne()
-                .HasForeignKey<Group>(g => g.DefaultApplicationId)
-                //.HasConstraintName("fk_default_application")
-                .IsRequired(false);
+            //modelBuilder.Entity<Group>()
+            //    .HasOne(e => e.DefaultApplication)
+            //    .WithMany()
+            //    .HasForeignKey<Group>(g => g.DefaultApplicationId)
+            //.HasConstraintName("fk_default_application")
+            //.IsRequired(false);
 
             // 应用群组一对多
             modelBuilder.Entity<Application>()
-                .HasOne(a => a.Group)
-                .WithMany()
-                .HasForeignKey(a => a.GroupId)
-                //.HasConstraintName("fk_parent_group")
+                .HasMany<Group>()
+                .WithOne(g => g.DefaultApplication)
+                .HasForeignKey(g => g.DefaultApplicationId)
                 .IsRequired(false);
 
             // 应用证书多对一关系
@@ -138,7 +146,7 @@ namespace AuthCenter.Data
                             ClientId = Guid.NewGuid().ToString("N"),
                             ClientSecret = Guid.NewGuid().ToString("N"),
                             CertId = 1,
-                            GroupId = 1,
+                            GroupIds = [1],
                             Scopes = ["email", "phone"]
                         });
 
@@ -159,13 +167,12 @@ namespace AuthCenter.Data
                         });
                     }
 
-                    var defaultUser = context.Set<User>().FirstOrDefault(u => u.Id == 1);
+                    var defaultUser = context.Set<User>().FirstOrDefault(u => u.Id == "admin");
                     if (defaultUser == null)
                     {
                         context.Set<User>().Add(new User()
                         {
-                            Id = 1,
-                            Number = "admin",
+                            Id = "admin",
                             Name = "admin",
                             Password = BCrypt.Net.BCrypt.HashPassword("rootroot"),
                             Roles = ["admin"],

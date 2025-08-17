@@ -5,14 +5,14 @@
 namespace AuthCenter.Migrations
 {
     /// <inheritdoc />
-    public partial class _2025822 : Migration
+    public partial class _20258171 : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.AddColumn<bool>(
-                name: "is_admin",
-                table: "user",
+                name: "disable_signup",
+                table: "group",
                 type: "boolean",
                 nullable: false,
                 defaultValue: false);
@@ -22,8 +22,8 @@ namespace AuthCenter.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropColumn(
-                name: "is_admin",
-                table: "user");
+                name: "disable_signup",
+                table: "group");
         }
     }
 }

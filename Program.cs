@@ -3,6 +3,8 @@ using AuthCenter.Handler;
 using AuthCenter.ViewModels;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using StackExchange.Redis;
+using System.Configuration;
 using System.Diagnostics;
 var builder = WebApplication.CreateBuilder(args);
 
@@ -44,6 +46,7 @@ builder.Services.AddControllers().ConfigureApiBehaviorOptions(options =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options => options.CustomSchemaIds(x => x.FullName));
 builder.Services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
+builder.Services.AddSingleton(ConnectionMultiplexer.Connect(builder.Configuration.GetConnectionString("RedisContext") ?? "").GetDatabase(0));
 
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 

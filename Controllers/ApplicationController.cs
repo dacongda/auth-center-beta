@@ -32,6 +32,15 @@ namespace AuthCenter.Controllers
             return JSONResult.ResponseOk(app);
         }
 
+        [HttpGet("getApplicationsByGroupId", Name = "GetApplicationsByGroupId")]
+        public JSONResult GetByGroup(int groupId)
+        {
+            var apps = _authCenterDbContext.Application.Where(app => app.GroupIds.Contains(groupId))
+                .Select(app => new { app.Id, app.Name });
+
+            return JSONResult.ResponseOk(apps);
+        }
+
         [HttpPost(Name = "AddApp")]
         public JSONResult Add(Application application)
         {
