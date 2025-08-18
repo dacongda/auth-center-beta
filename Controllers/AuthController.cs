@@ -4,17 +4,25 @@ using AuthCenter.IdProvider;
 using AuthCenter.Models;
 using AuthCenter.Utils;
 using AuthCenter.ViewModels;
+using DocumentFormat.OpenXml.InkML;
 using DocumentFormat.OpenXml.Spreadsheet;
+using DocumentFormat.OpenXml.Wordprocessing;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.DotNet.Scaffolding.Shared;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.IdentityModel.Tokens;
 using OtpNet;
+using System;
+using System.ComponentModel.DataAnnotations;
+using System.IdentityModel.Tokens.Jwt;
+using System.Linq;
 using System.Security.Claims;
 using System.Text.Json;
 
@@ -78,7 +86,7 @@ namespace AuthCenter.Controllers
                 if (!VerifyMfa(dbUser, loginUser.LoginMethod, loginUser.Code, loginUser.Password))
                     return JSONResult.ResponseError("MFA认证失败");
 
-                curApplication = _authCenterDbContext.Application.Find(userObj.LoginApplication);
+                curApplication = _authCenterDbContext.Application.Where(app => app.Id == userObj.LoginApplication).Include(app => app.Cert).FirstOrDefault();
                 if (curApplication is null)
                 {
                     return JSONResult.ResponseError("应用不存在");
@@ -90,7 +98,7 @@ namespace AuthCenter.Controllers
             // 登陆至第三方
             if (loginUser.Type != "login" && loginUser.Type != "bind")
             {
-                var rawClientId = clientId.ToString().Split("-")[0];
+                var rawClientId = clientId.ToString().Split("-", 2)[0];
                 curApplication = _authCenterDbContext.Application.Where(app => app.ClientId == rawClientId).Include(app => app.Cert).AsNoTracking().FirstOrDefault();
                 if (curApplication == null)
                 {
@@ -288,11 +296,17 @@ namespace AuthCenter.Controllers
 
                 return true;
             }
-            else
+            else if (mfaType == "Phone")
             {
                 var ans = _cache.GetString($"verification:code:{mfaVerifyId}");
                 return code == ans;
             }
+            else if(mfaType == "RecoveryCode")
+            {
+                return code == user.RecoveryCode;
+            }
+
+            return false;
         }
 
         private JSONResult HandleUserLogin(LoginUser loginUser, User user, Application application, string loginVia)
@@ -391,7 +405,7 @@ namespace AuthCenter.Controllers
                 Dictionary<string, string> dict = [];
 
                 var code = Guid.NewGuid().ToString();
-                code = Base64UrlEncoder.Encode(code);
+                code = Base64UrlEncoder.Encode(code).Replace("-", "X");
 
                 if (responseType.Contains("code"))
                 {
@@ -438,6 +452,19 @@ namespace AuthCenter.Controllers
             else if (loginUser.Type == "saml")
             {
                 var rawSamlRequest = Request.Query["SAMLRequest"];
+                var rawRelayState = Request.Query["RelayState"];
+                if (String.IsNullOrEmpty(rawSamlRequest))
+                {
+                    var samlId = Request.Query["samlId"];
+                    var rawQuery = _cache.GetString($"Login:SAML:SAMLID:{samlId}");
+                    if (rawQuery is null)
+                    {
+                        return JSONResult.ResponseError("请求参数错误");
+                    }
+                    rawSamlRequest = rawQuery.Split("|")[0];
+                    rawRelayState = rawQuery.Split("|")[1];
+                }
+
                 var samlRequest = SamlUtil.ParseSamlRequest(rawSamlRequest.ToString());
 
                 var redirectUri = new Uri(samlRequest.AssertionConsumerServiceURL ?? "");
@@ -466,6 +493,7 @@ namespace AuthCenter.Controllers
                 return JSONResult.ResponseOk(new
                 {
                     samlResponse,
+                    relayState = rawRelayState,
                     samlBindingType = samlRequest.ProtocolBinding,
                     redirectUrl = samlRequest.AssertionConsumerServiceURL
                 });
@@ -483,7 +511,8 @@ namespace AuthCenter.Controllers
                 return JSONResult.ResponseError("无此群组");
             }
 
-            if (group.DisableSignup) {
+            if (group.DisableSignup)
+            {
                 return JSONResult.ResponseError("此应用禁止注册");
             }
 
@@ -515,7 +544,8 @@ namespace AuthCenter.Controllers
             var emailProviderItem = curApplication.ProviderItems.Where(pItem => pItem.Type == "Email").FirstOrDefault();
             if (emailProviderItem != null && emailProviderItem.Rule.Contains("Register"))
             {
-                if (!VerifyMfa(user, "Email", registerUser.EmailVerifyCode, registerUser.EmailVerifyId)) {
+                if (!VerifyMfa(user, "Email", registerUser.EmailVerifyCode, registerUser.EmailVerifyId))
+                {
                     return JSONResult.ResponseError("邮箱验证失败");
                 }
 
@@ -538,7 +568,7 @@ namespace AuthCenter.Controllers
 
             _authCenterDbContext.User.Add(user);
             await _authCenterDbContext.SaveChangesAsync();
-            
+
             return JSONResult.ResponseOk();
         }
         [HttpPost("logout", Name = "Logout")]
@@ -694,7 +724,7 @@ namespace AuthCenter.Controllers
             {
                 curUser = HttpContext.Items["user"] as User;
             }
-            else if(request.VerifyId != "")
+            else if (request.VerifyId != "")
             {
                 var userObjStr = _cache.GetString($"mfa:verify:{request.VerifyId}") ?? "";
                 if (String.IsNullOrEmpty(userObjStr)) return JSONResult.ResponseError("验证Id错误");
@@ -794,6 +824,138 @@ namespace AuthCenter.Controllers
             }
         }
 
+        [HttpPost("sendForgetPasswordLink", Name = "SendForgetPasswordLink")]
+        [AllowAnonymous]
+        public async Task<JSONResult> SendForgetPasswordLink(VerificationCodeRequest request)
+        {
+            var emailVerifier = new EmailAddressAttribute();
+            if (!emailVerifier.IsValid(request.Destination))
+            {
+                return JSONResult.ResponseError("邮件地址不正确");
+            }
+
+            var app = await _authCenterDbContext.Application.Where(a => a.Id == request.ApplicationId).Include(a => a.Cert).FirstOrDefaultAsync();
+            if (app == null) {
+                return JSONResult.ResponseError("应用不存在");
+            }
+            var res = VerifyCaptchaCode(app, request.CaptchaId, request.CaptchaCode, true);
+            if (res != "")
+            {
+                return JSONResult.ResponseError(res);
+            }
+
+            var mProviderItem = (from pItem in app.ProviderItems
+                             where pItem.Type == "Email" && pItem.Rule.Contains("ForgetPassword")
+                             select pItem).FirstOrDefault();
+            if (mProviderItem == null)
+            {
+                return JSONResult.ResponseError("邮件提供商不存在或不支持忘记密码");
+            }
+
+            var mProvider = await _authCenterDbContext.Provider.FindAsync(mProviderItem.ProviderId);
+            if (mProvider == null)
+            {
+                return JSONResult.ResponseError("邮件提供商不存在或不支持忘记密码");
+            }
+
+            var user = await _authCenterDbContext.User.Where(u => u.Email == request.Destination).Include(u => u.Group).FirstOrDefaultAsync();
+            if (user == null || user.GroupId == null) {
+                return JSONResult.ResponseError("用户不存在");
+            }
+
+            if (!app.GroupIds.Any(item => item == user.GroupId))
+            {
+                return JSONResult.ResponseError("用户不存在");
+            }
+
+            var url = Request.Scheme + "://" + Request.Host.Value;
+            var frontEndUrl = _configuration["FrontEndUrl"] ?? "";
+            if (frontEndUrl == null || frontEndUrl == "")
+            {
+                frontEndUrl = url;
+            }
+
+            var tokenId = Guid.NewGuid().ToString();
+            var cert = app.Cert!;
+            var certKey = cert.ToSecurityKey();
+
+            var signingCredentials = new SigningCredentials(certKey, $"{cert.CryptoAlgorithm}{cert.CryptoSHASize}");
+
+            app.AccessExpiredSecond = 300;
+            var forgetToken = TokenUtil.GenerateToken(tokenId, user, app, signingCredentials, "forget_password", [], url, "");
+
+            await _cache.SetStringAsync($"Login:Forget:Token:{tokenId}", "1", new DistributedCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(300)
+            });
+
+            var resetLink = $"{frontEndUrl}/auth/confirm-forget/{user.Group!.Name}?token={forgetToken}";
+            var body = mProvider.LinkBody?.Replace("%link%", resetLink) ?? "";
+
+            EmailUtils.SendEmail(mProvider.ConfigureUrl!,
+                mProvider.Port!.Value,
+                mProvider.EnableSSL!.Value,
+                mProvider.ClientId!,
+                mProvider.ClientSecret!,
+                request.Destination,
+                mProvider.Subject!, 
+                body);
+
+            return JSONResult.ResponseOk();
+        }
+
+        [HttpPost("resetPassword", Name= "ResetPassword")]
+        [AllowAnonymous]
+        public async Task<JSONResult> ResetPassword(ResetPasswordRequest request)
+        {
+            var tokenObj = new JwtSecurityToken(request.ResetToken);
+
+            var jti = tokenObj.Claims.FirstOrDefault(c => c.Type == "jti")?.Value ?? "";
+
+            var isValid = await _cache.GetStringAsync($"Login:Forget:Token:{jti}");
+            if (isValid == null)
+            {
+                return JSONResult.ResponseError("链接已失效");
+            }
+
+            var clientId = tokenObj.Audiences.First();
+            if (clientId == null)
+            {
+                return JSONResult.ResponseError("应用不存在");
+            }
+
+            var app = _authCenterDbContext.Application.Where(app => app.ClientId == clientId).Include(p => p.Cert).First();
+
+            try
+            {
+                _ = TokenUtil.ValidateToken(request.ResetToken!, app, Request.GetDisplayUrl());
+            }
+            catch
+            {
+                return JSONResult.ResponseError("应用不存在");
+            }
+
+            var user = _authCenterDbContext.User.Where(user => user.Id == tokenObj.Subject).Include(p => p.Group).First();
+            if (user == null)
+            {
+                return JSONResult.ResponseError("用户不存在");
+            }
+
+            user.Password = BCrypt.Net.BCrypt.HashPassword(request.Password);
+            var affected = await _authCenterDbContext.User.Where(u => u.Id == user.Id)
+                .ExecuteUpdateAsync(s => s.SetProperty(u => u.Password, user.Password));
+
+            if (affected != 1)
+            {
+                return JSONResult.ResponseError("重置失败");
+            }
+
+            _ = _cache.RemoveAsync($"Login:Forget:Token:{jti}");
+
+            return JSONResult.ResponseOk();
+        }
+
+
         private string VerifyCaptchaCode(Application app, string captchaId, string captchaCode, bool mustVerify)
         {
             var captchaItems = (from pItem in app.ProviderItems
@@ -830,7 +992,7 @@ namespace AuthCenter.Controllers
 
         [HttpPost("revokeToken", Name = "Revoke user token")]
         [Authorize(Roles = "admin,user")]
-        public async Task<JSONResult> RevokeSession([FromBody]dynamic data)
+        public async Task<JSONResult> RevokeSession([FromBody] dynamic data)
         {
             dynamic dynParam = Newtonsoft.Json.JsonConvert.DeserializeObject(Convert.ToString(data));
             var sessionId = (string)dynParam.sessionId;

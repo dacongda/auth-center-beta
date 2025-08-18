@@ -95,13 +95,13 @@ namespace AuthCenter.Utils
             }
 
             var expiredTime = DateTime.Now;
-            if (tokenType == "access_token")
+            if (tokenType == "access_token" || tokenType == "forget_password")
             {
-                expiredTime.AddSeconds(application.AccessExpiredSecond);
+                expiredTime = expiredTime.AddSeconds(application.AccessExpiredSecond);
             }
             else
             {
-                expiredTime.AddSeconds(application.ExpiredSecond);
+                expiredTime = expiredTime.AddSeconds(application.ExpiredSecond);
             }
 
             var jwtToken = new JwtSecurityToken(

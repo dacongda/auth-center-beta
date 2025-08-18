@@ -177,6 +177,7 @@ namespace AuthCenter.Controllers
             {
                 var splitedClient = clientId.Split("-", 2);
                 groupName = splitedClient.Length == 2 ? splitedClient[1] : groupName;
+                clientId = splitedClient[0];
             }
 
             var group = _authCenterDbContext.Group.Where(g => g.Name == groupName).AsNoTracking().FirstOrDefault();

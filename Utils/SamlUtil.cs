@@ -42,7 +42,7 @@ namespace AuthCenter.Utils
                         new XElement(md + "NameIDFormat", "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"),
 
                         new XElement(md + "SingleSignOnService", new XAttribute("Binding", "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"), new XAttribute("Location", frontEndUrl + "/auth/login-saml/" + application.ClientId)),
-                        new XElement(md + "SingleSignOnService", new XAttribute("Binding", "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"), new XAttribute("Location", frontEndUrl + "/auth/login-saml/" + application.ClientId), new XAttribute("isDefault", "true")),
+                        new XElement(md + "SingleSignOnService", new XAttribute("Binding", "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"), new XAttribute("Location", frontEndUrl + "/api/login-saml/" + application.ClientId), new XAttribute("isDefault", "true")),
 
                         new XElement(md + "SingleLogoutService", new XAttribute("Binding", "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"), new XAttribute("Location", frontEndUrl + "/api/logout-saml/" + application.ClientId)),
                         new XElement(md + "SingleLogoutService", new XAttribute("Binding", "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"), new XAttribute("Location", frontEndUrl + "/api/logout-saml/" + application.ClientId))

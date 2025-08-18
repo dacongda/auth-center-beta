@@ -59,6 +59,7 @@ namespace AuthCenter.Models
          * Path Prefix for S3
          */
         public string? Body { get; set; }
+        public string? LinkBody { get; set; }
         public bool? EnableSSL { get; set; }
         /**
          * code length for default captcha
