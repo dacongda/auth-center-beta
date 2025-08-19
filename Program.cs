@@ -3,6 +3,7 @@ using AuthCenter.Handler;
 using AuthCenter.ViewModels;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 using StackExchange.Redis;
 using System.Configuration;
 using System.Diagnostics;
@@ -77,6 +78,15 @@ app.Use(async (context, next) =>
         .CreateLogger("PerformanceLog");
     logger?.LogInformation("TraceId:{TraceId}, RequestMethod:{RequestMethod}, RequestPath:{RequestPath}, ElapsedMilliseconds:{ElapsedMilliseconds}, Response StatusCode: {StatusCode}",
                             context.TraceIdentifier, context.Request.Method, context.Request.Path, profiler.ElapsedMilliseconds, context.Response.StatusCode);
+});
+
+var currentDir = Directory.GetCurrentDirectory();
+var baseDir = Path.Combine(currentDir, builder.Configuration.GetConnectionString("baseDir") ?? "./upload");
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(baseDir),
+    RequestPath = "/api/static"
 });
 
 app.UseHttpsRedirection();

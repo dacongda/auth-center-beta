@@ -36,7 +36,7 @@ namespace AuthCenter.Data
         public DbSet<WebAuthnCredential> WebAuthnCredential { get; set; } = default!;
         public DbSet<UserThirdpartInfo> UserThirdpartInfos { get; set; } = default!;
         public DbSet<UserSession> UserSessions { get; set; } = default!;
-
+        public DbSet<UploadFile> UploadFiles { get; set; } = default!;
 
         public override int SaveChanges()
         {

@@ -2,6 +2,7 @@
 using AuthCenter.Data;
 using AuthCenter.Handler;
 using AuthCenter.Models;
+using AuthCenter.Providers.StorageProvider;
 using AuthCenter.Utils;
 using AuthCenter.ViewModels;
 using DocumentFormat.OpenXml.Packaging;
@@ -16,6 +17,7 @@ using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.NET.StringTools;
 using NPOI.XSSF.UserModel;
+using SkiaSharp;
 using System.ComponentModel.DataAnnotations;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -284,6 +286,74 @@ namespace AuthCenter.Controllers
             }
 
             return JSONResult.ResponseError("未知类型");
+        }
+
+        [HttpPost("updateAvatar", Name = "UpdateAvatar")]
+        public async Task<JSONResult> UpdateAvatar()
+        {
+            var avatarFile = Request.Form.Files.FirstOrDefault();
+            if (avatarFile is null)
+            {
+                return JSONResult.ResponseError("未携带文件");
+            }
+
+            if (avatarFile.Length > 1024 * 1024 * 2)
+            {
+                return JSONResult.ResponseError("图片过大");
+            }
+
+            if (HttpContext.Items["user"] is not User user)
+            {
+                return JSONResult.ResponseError("服务器错误");
+            }
+
+            var app = await _authCenterDbContext.Application.FindAsync(user.loginApplication);
+            if (app == null) {
+                return JSONResult.ResponseError("无此应用");
+            }
+
+            var storageProviderItem = app.ProviderItems.Where(pItem => pItem.Type == "Storage").FirstOrDefault();
+            if (storageProviderItem == null) {
+                return JSONResult.ResponseError("无存储提供商");
+            }
+
+            var dbStorageProvider = await _authCenterDbContext.Provider.FindAsync(storageProviderItem.ProviderId);
+            if (dbStorageProvider == null)
+            {
+                return JSONResult.ResponseError("无存储提供商");
+            }
+
+            var baseDir = _configuration["baseDir"] ?? "upload";
+            var storageProvider = IStorageProvider.GetStorageProvider(dbStorageProvider, baseDir);
+
+            using var bitMap = SKBitmap.Decode(avatarFile.OpenReadStream());
+            using var image = SKImage.FromBitmap(bitMap.Resize(new SKSizeI(128, 128), SKSamplingOptions.Default));
+            using var data = image.Encode(SKEncodedImageFormat.Webp, 75);
+            Stream savedFile = data.AsStream();
+
+            var fileInfo = await storageProvider.AddFile(savedFile, "", "webp");
+
+            var uploadFile = new UploadFile
+            {
+                Filename = fileInfo.Name,
+                Filepath = fileInfo.Path,
+                Extension = "webp",
+                ProviderId = dbStorageProvider.Id,
+            };
+
+            _authCenterDbContext.Add(uploadFile);
+            await _authCenterDbContext.SaveChangesAsync();
+
+            var affected = await _authCenterDbContext.User
+                .Where(u => u.Id == User.Identity!.Name)
+                .ExecuteUpdateAsync(u => u.SetProperty(u => u.Avatar, fileInfo.Path));
+
+            if (affected == 0)
+            {
+                return JSONResult.ResponseError("更新失败");
+            }
+
+            return JSONResult.ResponseOk();
         }
 
         [HttpPost("unBindThirdPart", Name = "UnBindThirdPart")]
