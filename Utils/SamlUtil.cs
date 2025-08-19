@@ -154,7 +154,7 @@ namespace AuthCenter.Utils
 
             XmlNamespaceManager ns = new XmlNamespaceManager(doc.NameTable);
             ns.AddNamespace("saml", "urn:oasis:names:tc:SAML:2.0:assertion");
-            XmlElement? xeAssertion = doc.DocumentElement.SelectSingleNode("saml:Assertion", ns) as XmlElement;
+            XmlElement? xeAssertion = doc.DocumentElement!.SelectSingleNode("saml:Assertion", ns) as XmlElement;
 
             SignedXml? signedXml = null;
             var x509Cert = application.Cert!.ToX509Certificate2();
@@ -185,7 +185,7 @@ namespace AuthCenter.Utils
             signedXml.ComputeSignature();
             XmlElement xmlDigitalSignature = signedXml.GetXml();
 
-            XmlElement? xeIssuer = xeAssertion.SelectSingleNode("saml:Issuer", ns) as XmlElement;
+            XmlElement? xeIssuer = xeAssertion!.SelectSingleNode("saml:Issuer", ns) as XmlElement;
             xeAssertion.InsertAfter(xmlDigitalSignature, xeIssuer);
 
             var docBytes = Encoding.UTF8.GetBytes(doc.InnerXml);
@@ -253,7 +253,6 @@ namespace AuthCenter.Utils
             public string ProtocolBinding { get; set; } = "";
             public string Issuer { get; set; } = "";
         }
-
 
         public static SamlRequest ParseSamlRequest(string samlRequest)
         {
