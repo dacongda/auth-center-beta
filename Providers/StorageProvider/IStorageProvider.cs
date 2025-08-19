@@ -16,9 +16,9 @@ namespace AuthCenter.Providers.StorageProvider
             if (provider.SubType == "Local")
             {
                 return new LocalStorage(provider.Body ?? "", baseDir);
-            } else
+            } else if(provider.SubType == "S3")
             {
-                return new S3(provider.ClientId!, provider.ClientSecret!, provider.ConfigureUrl!, provider.Subject!, provider.RegionId!, provider.Body!);
+                return new S3(provider.ClientId!, provider.ClientSecret!, provider.ConfigureUrl!, provider.Subject!, provider.RegionId!, provider.Body!, provider.AuthEndpoint!);
             }
 
             throw new NotImplementedException();

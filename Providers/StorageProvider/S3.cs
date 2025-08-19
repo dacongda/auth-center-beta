@@ -4,18 +4,20 @@ using Amazon.S3.Model;
 
 namespace AuthCenter.Providers.StorageProvider
 {
-    public class S3(string accessKey, string accessSecret, string endpoint,string bucket, string region, string prefix) : IStorageProvider
+    public class S3(string accessKey, string accessSecret, string endpoint, string bucket, string region, string prefix, string urlStyle) : IStorageProvider
     {
         private readonly string _accessKey = accessKey;
         private readonly string _accessKeySecret = accessSecret;
         private readonly string _prefix = prefix;
         private readonly string _bucket = bucket;
+        private readonly string _urlStyle = urlStyle;
+        private readonly string _endpoint = endpoint;
 
         private readonly AmazonS3Client client = new(accessKey, accessSecret, new AmazonS3Config
         {
             RegionEndpoint = RegionEndpoint.GetBySystemName(region),
             ServiceURL = endpoint,
-            ForcePathStyle = true,
+            RequestChecksumCalculation = Amazon.Runtime.RequestChecksumCalculation.WHEN_REQUIRED,
         });
 
         public async Task<StorageFileInfo> AddFile(Stream fileStream, string filename, string extension)
@@ -28,7 +30,7 @@ namespace AuthCenter.Providers.StorageProvider
             string newFilename = $"{Guid.NewGuid():N}-{DateTimeOffset.Now.ToUnixTimeMilliseconds()}.{extension}";
             var request = new PutObjectRequest
             {
-                BucketName = _bucket,
+                BucketName = bucket,
                 Key = newFilename,
                 FilePath = _prefix,
                 InputStream = fileStream,
@@ -37,7 +39,21 @@ namespace AuthCenter.Providers.StorageProvider
 
             var resp = await client.PutObjectAsync(request);
 
-            return new StorageFileInfo { Name = newFilename, Path = Path.Combine(_bucket, newFilename) };
+            var urlBulder = new UriBuilder(_endpoint);
+            if(urlStyle == "Virtual-Host")
+            {
+                urlBulder.Host = $"{bucket}.{urlBulder.Host}";
+                urlBulder.Path = $"{_prefix}/{newFilename}";
+            } else
+            {
+                urlBulder.Path = $"{bucket}/{_prefix}/{newFilename}";
+            }
+
+            return new StorageFileInfo
+            {
+                Name = newFilename,
+                Path = urlBulder.ToString()
+            };
         }
 
 
