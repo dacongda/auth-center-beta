@@ -411,6 +411,7 @@ namespace AuthCenter.Controllers
                 userId = user.Id,
                 username = user.Name,
                 id = user.Id,
+                avatar = user.Avatar,
                 loginApplication = application.getMaskedApplication()
             });
         }

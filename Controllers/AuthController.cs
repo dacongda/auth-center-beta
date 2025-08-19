@@ -1,7 +1,7 @@
 ﻿using AuthCenter.Captcha;
 using AuthCenter.Data;
-using AuthCenter.IdProvider;
 using AuthCenter.Models;
+using AuthCenter.Providers.IdProvider;
 using AuthCenter.Utils;
 using AuthCenter.ViewModels;
 using DocumentFormat.OpenXml.InkML;
@@ -133,7 +133,7 @@ namespace AuthCenter.Controllers
                 verifyPassword = true;
             }
 
-            IdProvider.UserInfo? userInfo = null;
+            Providers.IdProvider.UserInfo? userInfo = null;
             var loginVia = "default";
             if (loginUser.LoginMethod == "ThirdPart")
             {

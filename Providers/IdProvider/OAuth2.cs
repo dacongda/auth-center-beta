@@ -3,7 +3,7 @@ using Newtonsoft.Json.Linq;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-namespace AuthCenter.IdProvider
+namespace AuthCenter.Providers.IdProvider
 {
     public class OAuth2(string clientId, string clientSecret, string tokenEndpoint, string userInfoEndpoint, string tokenType, string redirectUri, UserInfoMap userInfoMap) : IIdProvider
     {

@@ -1,7 +1,7 @@
 ﻿using AuthCenter.Models;
 using Microsoft.Extensions.Caching.Distributed;
 
-namespace AuthCenter.IdProvider
+namespace AuthCenter.Providers.IdProvider
 {
     public class UserInfo
     {
