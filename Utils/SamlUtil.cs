@@ -1,4 +1,5 @@
 ﻿using AuthCenter.Models;
+using StackExchange.Redis;
 using System.IO.Compression;
 using System.Security.Cryptography.X509Certificates;
 using System.Security.Cryptography.Xml;
@@ -85,6 +86,30 @@ namespace AuthCenter.Utils
                 attributeStatement.Add(GetAttribute("name", user.Name));
             }
 
+            foreach (var item in application.SamlAttributes)
+            {
+                if (item.Value.Contains("$user.Roles"))
+                {
+                    var roles = (from role in user.Roles select item.Value.Replace("$user.Roles", role)).ToArray();
+                    attributeStatement.Add(GetAttribute(item.Name, item.NameFormat, roles));
+                }
+
+                if (item.Value.Contains("$user.Email"))
+                {
+                    XNamespace xsi = "http://www.w3.org/2001/XMLSchema-instance";
+                    attributeStatement.Add(GetAttribute(item.Name, item.NameFormat, user.Email!));
+
+                }
+
+                if (item.Value.Contains("$user.Id"))
+                {
+                    XNamespace xsi = "http://www.w3.org/2001/XMLSchema-instance";
+                    attributeStatement.Add(GetAttribute(item.Name, item.NameFormat, user.Id!));
+                }
+            }
+
+
+
             var assertion =
                 new XElement(Saml + "Assertion",
                         new XAttribute("ID", "_" + id),
@@ -100,7 +125,8 @@ namespace AuthCenter.Utils
                         new XElement(Saml + "SubjectConfirmation", new XAttribute("Method", "urn:oasis:names:tc:SAML:2.0:cm:bearer"), subjectConfirmationData)),
                         new XElement(Saml + "Conditions", new XAttribute("NotBefore", currentTimeStr), new XAttribute("NotOnOrAfter", expiredTimeStr),
                             new XElement(Saml + "AudienceRestriction",
-                               new XElement(Saml + "Audience", requestIssuer)
+                               //new XElement(Saml + "Audience", requestIssuer),
+                               from aud in application.SamlAudiences select new XElement(Saml + "Audience", aud)
                             )
                         ),
                         new XElement(Saml + "AuthnStatement", new XAttribute("AuthnInstant", currentTimeStr),
@@ -128,26 +154,26 @@ namespace AuthCenter.Utils
 
             XmlNamespaceManager ns = new XmlNamespaceManager(doc.NameTable);
             ns.AddNamespace("saml", "urn:oasis:names:tc:SAML:2.0:assertion");
-            XmlElement xeAssertion = doc.DocumentElement.SelectSingleNode("saml:Assertion", ns) as XmlElement;
+            XmlElement? xeAssertion = doc.DocumentElement.SelectSingleNode("saml:Assertion", ns) as XmlElement;
 
             SignedXml? signedXml = null;
             var x509Cert = application.Cert!.ToX509Certificate2();
             if (application.Cert.CryptoAlgorithm == "RS")
             {
-                signedXml = new(xeAssertion)
+                signedXml = new(xeAssertion!)
                 {
                     SigningKey = x509Cert.GetRSAPrivateKey()
                 };
             }
             else
             {
-                signedXml = new(xeAssertion)
+                signedXml = new(xeAssertion!)
                 {
                     SigningKey = x509Cert.GetECDsaPrivateKey()
                 };
             }
 
-            signedXml.SignedInfo.CanonicalizationMethod = SignedXml.XmlDsigC14NTransformUrl;
+            signedXml.SignedInfo!.CanonicalizationMethod = SignedXml.XmlDsigC14NTransformUrl;
 
             Reference reference = new();
 
@@ -159,7 +185,7 @@ namespace AuthCenter.Utils
             signedXml.ComputeSignature();
             XmlElement xmlDigitalSignature = signedXml.GetXml();
 
-            XmlElement xeIssuer = xeAssertion.SelectSingleNode("saml:Issuer", ns) as XmlElement;
+            XmlElement? xeIssuer = xeAssertion.SelectSingleNode("saml:Issuer", ns) as XmlElement;
             xeAssertion.InsertAfter(xmlDigitalSignature, xeIssuer);
 
             var docBytes = Encoding.UTF8.GetBytes(doc.InnerXml);
@@ -186,6 +212,30 @@ namespace AuthCenter.Utils
             XNamespace xsi = "http://www.w3.org/2001/XMLSchema-instance";
             return new XElement(Saml + "Attribute", new XAttribute("Name", name), new XAttribute("NameFormat", "urn:oasis:names:tc:SAML:2.0:attrname-format:basic"),
                     new XElement(Saml + "AttributeValue", new XAttribute(XNamespace.Xmlns + "xs", "http://www.w3.org/2001/XMLSchema"),
+                        new XAttribute(XNamespace.Xmlns + "xsi", "http://www.w3.org/2001/XMLSchema-instance"),
+                        new XAttribute(xsi + "type", "xs:string"),
+                        value
+                    )
+                );
+        }
+
+        private static XElement GetAttribute(string name, string nameFormat, string value)
+        {
+            XNamespace xsi = "http://www.w3.org/2001/XMLSchema-instance";
+            return new XElement(Saml + "Attribute", new XAttribute("Name", name), new XAttribute("NameFormat", nameFormat),
+                    new XElement(Saml + "AttributeValue", new XAttribute(XNamespace.Xmlns + "xs", "http://www.w3.org/2001/XMLSchema"),
+                        new XAttribute(XNamespace.Xmlns + "xsi", "http://www.w3.org/2001/XMLSchema-instance"),
+                        new XAttribute(xsi + "type", "xs:string"),
+                        value
+                    )
+                );
+        }
+
+        private static XElement GetAttribute(string name, string nameFormat, string[] values)
+        {
+            XNamespace xsi = "http://www.w3.org/2001/XMLSchema-instance";
+            return new XElement(Saml + "Attribute", new XAttribute("Name", name), new XAttribute("NameFormat", nameFormat),
+                    from value in values select new XElement(Saml + "AttributeValue", new XAttribute(XNamespace.Xmlns + "xs", "http://www.w3.org/2001/XMLSchema"),
                         new XAttribute(XNamespace.Xmlns + "xsi", "http://www.w3.org/2001/XMLSchema-instance"),
                         new XAttribute(xsi + "type", "xs:string"),
                         value

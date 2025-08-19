@@ -482,6 +482,16 @@ namespace AuthCenter.Controllers
                 }
 
                 var respId = Guid.NewGuid().ToString("N");
+
+                foreach(var item in application.SamlRedirects)
+                {
+                    if (item.Issuer == samlRequest.Issuer)
+                    {
+                        samlRequest.Issuer = item.Issuer;
+                        samlRequest.AssertionConsumerServiceURL = item.RedirectUrl;
+                    }
+                }
+
                 var samlResponse = SamlUtil.GetSAMLResponse(user, application, url, frontEndUrl, samlRequest.AssertionConsumerServiceURL ?? "", samlRequest.Issuer, respId, samlRequest.ID);
 
                 userSession.SessionId = respId;

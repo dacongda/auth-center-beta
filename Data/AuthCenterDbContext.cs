@@ -98,6 +98,20 @@ namespace AuthCenter.Data
                     builder.WithOwner().HasForeignKey(f=>f.FakeId);
                 });
 
+            modelBuilder.Entity<Application>()
+                .OwnsMany(e => e.SamlRedirects, builder =>
+                {
+                    builder.ToJson();
+                    builder.WithOwner().HasForeignKey(f => f.FakeId);
+                });
+
+            modelBuilder.Entity<Application>()
+                .OwnsMany(e => e.SamlAttributes, builder =>
+                {
+                    builder.ToJson();
+                    builder.WithOwner().HasForeignKey(f => f.FakeId);
+                });
+
             modelBuilder.Entity<Provider>()
                 .OwnsOne(e => e.UserInfoMap, builder =>
                 {

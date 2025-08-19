@@ -14,6 +14,23 @@ namespace AuthCenter.Models
         public string[] Rule { get; set; } = [];
     }
 
+    public class SamlAttribute
+    {
+        [JsonIgnore]
+        public int FakeId { get; set; } = 1;
+        public string Name { get; set; } = String.Empty;
+        public string NameFormat { get; set; } = String.Empty;
+        public string Value { get; set; } = String.Empty;
+    }
+
+    public class SamlRedirect
+    {
+        [JsonIgnore]
+        public int FakeId { get; set; } = 1;
+        public string Issuer { get; set; } = String.Empty;
+        public string RedirectUrl { get; set; } = String.Empty;
+    }
+
     [Index(nameof(ClientId), IsUnique = true)]
     public class Application : BaseModel
     {
@@ -32,6 +49,8 @@ namespace AuthCenter.Models
         public int ExpiredSecond { get; set; }
         public int AccessExpiredSecond { get; set; }
         public string[] SamlAudiences { get; set; } = [];
+        public List<SamlRedirect> SamlRedirects { get; set; } = [];
+        public List<SamlAttribute> SamlAttributes { get; set; } = [];
         public bool SamlResponseCompress { get; set; }
         public bool SamlEncrypt { get; set; }
         public List<ProviderItem> ProviderItems { get; set; } = [];
