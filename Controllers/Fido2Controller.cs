@@ -1,6 +1,7 @@
 ﻿using AuthCenter.Data;
 using AuthCenter.Models;
 using AuthCenter.ViewModels;
+using AuthCenter.ViewModels.Request;
 using Fido2NetLib;
 using Fido2NetLib.Objects;
 using Microsoft.AspNetCore.Authorization;

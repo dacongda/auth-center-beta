@@ -1,5 +1,6 @@
 ﻿using AuthCenter.Data;
 using AuthCenter.ViewModels;
+using AuthCenter.ViewModels.Response;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Cryptography.X509Certificates;

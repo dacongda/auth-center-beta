@@ -1,4 +1,4 @@
-﻿namespace AuthCenter.ViewModels
+﻿namespace AuthCenter.ViewModels.Request
 {
     public class TokenRequest
     {

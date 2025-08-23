@@ -1,6 +1,7 @@
 ﻿using AuthCenter.Data;
 using AuthCenter.Models;
 using AuthCenter.ViewModels;
+using AuthCenter.ViewModels.Request;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;

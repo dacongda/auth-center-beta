@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace AuthCenter.ViewModels
+namespace AuthCenter.ViewModels.Request
 {
     public class WebAuthnRequest<T>
     {

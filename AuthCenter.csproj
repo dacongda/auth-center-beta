@@ -48,8 +48,6 @@
 
   <ItemGroup>
     <Folder Include="upload\avatar\" />
-    <Folder Include="ViewModels\Request\" />
-    <Folder Include="ViewModels\Response\" />
   </ItemGroup>
 
 </Project>

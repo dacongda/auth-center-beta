@@ -4,6 +4,7 @@ using AuthCenter.Models;
 using AuthCenter.Providers.IdProvider;
 using AuthCenter.Utils;
 using AuthCenter.ViewModels;
+using AuthCenter.ViewModels.Request;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Extensions;

@@ -1,6 +1,6 @@
 ﻿using AuthCenter.Data;
 using AuthCenter.Models;
-using AuthCenter.ViewModels;
+using AuthCenter.ViewModels.Request;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;

@@ -1,6 +1,6 @@
 ﻿using AuthCenter.Models;
 
-namespace AuthCenter.ViewModels
+namespace AuthCenter.ViewModels.Request
 {
     public class ProviderViewModel : Provider
     {

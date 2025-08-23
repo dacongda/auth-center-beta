@@ -1,4 +1,4 @@
-﻿namespace AuthCenter.ViewModels
+﻿namespace AuthCenter.ViewModels.Response
 {
     public class OpenidConfiguration
     {

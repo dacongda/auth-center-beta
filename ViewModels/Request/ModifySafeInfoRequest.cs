@@ -1,6 +1,6 @@
 ﻿using System.Runtime.CompilerServices;
 
-namespace AuthCenter.ViewModels
+namespace AuthCenter.ViewModels.Request
 {
     public class ModifySafeInfoRequest
     {
