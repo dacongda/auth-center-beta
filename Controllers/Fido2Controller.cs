@@ -14,16 +14,20 @@ namespace AuthCenter.Controllers
     [ApiController]
     [Route("api/[controller]")]
     [Authorize(Roles = "admin,user")]
-    public class Fido2Controller(AuthCenterDbContext authCenterDbContext, IDistributedCache cache, ILogger<Fido2Controller> logger) : Controller
+    public class Fido2Controller(AuthCenterDbContext authCenterDbContext, IDistributedCache cache, IConfiguration configuration, ILogger<Fido2Controller> logger) : Controller
     {
         private readonly AuthCenterDbContext _authCenterDbContext = authCenterDbContext;
         private readonly IDistributedCache _cache = cache;
         private readonly ILogger<Fido2Controller> _logger = logger;
+        private readonly IConfiguration _configuration = configuration;
+
+        private readonly string frontEndUrl = configuration["FrontEndUrl"] ?? "http://localhost";
+        private readonly string serverDomain = new Uri(configuration["FrontEndUrl"] ?? "").Host;
 
         [HttpGet("getUserCredentials", Name = "GetUserCedentials")]
         public async Task<JSONResult> GetUserCredentials()
         {
-            var creds = await _authCenterDbContext.WebAuthnCredential.Where(c => c.UserId == User.Identity.Name).Select(c => new { c.Name, c.Id }).ToListAsync();
+            var creds = await _authCenterDbContext.WebAuthnCredential.Where(c => c.UserId == User.Identity!.Name).Select(c => new { c.Name, c.Id }).ToListAsync();
             return JSONResult.ResponseOk(creds);
         }
 
@@ -32,13 +36,13 @@ namespace AuthCenter.Controllers
         {
             var dbUser = HttpContext.Items["user"] as User;
 
-            var existingKeys = _authCenterDbContext.WebAuthnCredential.Where(c => c.UserId == User.Identity.Name).ToList();
+            var existingKeys = _authCenterDbContext.WebAuthnCredential.Where(c => c.UserId == User.Identity!.Name).ToList();
 
-            var origins = new HashSet<string>() { "https://localhost" };
+            var origins = new HashSet<string>() { "https://localhost", frontEndUrl };
 
             var fido2Config = new Fido2Configuration
             {
-                ServerDomain = "localhost",
+                ServerDomain = serverDomain,
                 ServerName = "AuthCenter",
                 Origins = origins,
                 TimestampDriftTolerance = 300000,
@@ -61,7 +65,7 @@ namespace AuthCenter.Controllers
 
             var user = new Fido2User
             {
-                DisplayName = dbUser.Name,
+                DisplayName = dbUser!.Name,
                 Name = dbUser.Id,
                 Id = Encoding.UTF8.GetBytes(dbUser.Id),
             };
@@ -103,10 +107,10 @@ namespace AuthCenter.Controllers
                 return JSONResult.ResponseError("无此请求");
             }
 
-            var origins = new HashSet<string>() { "https://localhost", "http://localhost:5888" };
+            var origins = new HashSet<string>() { "https://localhost", "http://localhost:5888", frontEndUrl };
             var fido2Config = new Fido2Configuration
             {
-                ServerDomain = "localhost",
+                ServerDomain = serverDomain,
                 ServerName = "AuthCenter",
                 Origins = origins,
                 TimestampDriftTolerance = 300000,
@@ -125,7 +129,7 @@ namespace AuthCenter.Controllers
                 Id = Convert.ToBase64String(credential.Id),
                 Name = Guid.NewGuid().ToString("N"),
                 PublicKey = credential.PublicKey,
-                UserId = User.Identity.Name,
+                UserId = User.Identity!.Name!,
                 Transports = credential.Transports,
                 IsBackedUp = credential.IsBackedUp,
                 IsBackupEligible = credential.IsBackupEligible,
@@ -133,6 +137,7 @@ namespace AuthCenter.Controllers
                 AttestationClientDataJson = credential.AttestationClientDataJson,
                 RegDate = DateTime.UtcNow,
                 AaGuid = credential.AaGuid,
+                SignCount = 1,
             };
 
             _ = await _authCenterDbContext.WebAuthnCredential.AddAsync(storedCred);
@@ -143,7 +148,8 @@ namespace AuthCenter.Controllers
 
         private async Task<bool> IsCredentialUniqueToUser(IsCredentialIdUniqueToUserParams args, CancellationToken cancellationToken)
         {
-            var count = await _authCenterDbContext.WebAuthnCredential.Where(c => c.UserId == args.User.Name).CountAsync(cancellationToken: cancellationToken);
+            var base64Id = Convert.ToBase64String(args.CredentialId);
+            var count = await _authCenterDbContext.WebAuthnCredential.Where(c => c.UserId == args.User.Name && c.Id == base64Id).CountAsync(cancellationToken: cancellationToken);
             return count == 0;
         }
 
@@ -164,11 +170,11 @@ namespace AuthCenter.Controllers
                 UserVerificationMethod = true,
             };
 
-            var origins = new HashSet<string>() { "https://localhost" };
+            var origins = new HashSet<string>() { "https://localhost", frontEndUrl };
 
             var fido2Config = new Fido2Configuration
             {
-                ServerDomain = "localhost",
+                ServerDomain = serverDomain,
                 ServerName = "AuthCenter",
                 Origins = origins,
                 TimestampDriftTolerance = 300000,
@@ -208,10 +214,10 @@ namespace AuthCenter.Controllers
 
             _ = _cache.RemoveAsync(clientResponse.CacheOptionId, cancellationToken);
 
-            var origins = new HashSet<string>() { "https://localhost", "http://localhost:5888" };
+            var origins = new HashSet<string>() { "https://localhost", "http://localhost:5888", frontEndUrl };
             var fido2Config = new Fido2Configuration
             {
-                ServerDomain = "localhost",
+                ServerDomain = serverDomain,
                 ServerName = "AuthCenter",
                 Origins = origins,
                 TimestampDriftTolerance = 300000,
@@ -231,9 +237,9 @@ namespace AuthCenter.Controllers
 
             var user = await _authCenterDbContext.User.FirstAsync(u => u.Id == cred.UserId);
 
-            IsUserHandleOwnerOfCredentialIdAsync callback = static async (args, cancellationToken) =>
+            IsUserHandleOwnerOfCredentialIdAsync callback = static (args, cancellationToken) =>
             {
-                return true;
+                return Task.FromResult(true);
             };
 
             var res = await fido2.MakeAssertionAsync(new MakeAssertionParams
@@ -265,7 +271,7 @@ namespace AuthCenter.Controllers
         [HttpPut("updateCredName", Name = "UpdateCredName")]
         public async Task<JSONResult> UpdateCredName(WebAuthnCredential webAuthnCredential)
         {
-            var cred = await _authCenterDbContext.WebAuthnCredential.Where(c => c.Id == webAuthnCredential.Id && c.UserId == User.Identity.Name).FirstOrDefaultAsync();
+            var cred = await _authCenterDbContext.WebAuthnCredential.Where(c => c.Id == webAuthnCredential.Id && c.UserId == User.Identity!.Name).FirstOrDefaultAsync();
             if (cred == null)
             {
                 return JSONResult.ResponseError("无此证书");
@@ -281,7 +287,7 @@ namespace AuthCenter.Controllers
         [HttpDelete("deleteCred", Name = "DeleteCred")]
         public async Task<JSONResult> DeleteCred(string id)
         {
-            var effected = await _authCenterDbContext.WebAuthnCredential.Where(c => c.Id == id && c.UserId == User.Identity.Name).ExecuteDeleteAsync();
+            var effected = await _authCenterDbContext.WebAuthnCredential.Where(c => c.Id == id && c.UserId == User.Identity!.Name).ExecuteDeleteAsync();
             if (effected != 1)
             {
                 return JSONResult.ResponseError("无此证书");

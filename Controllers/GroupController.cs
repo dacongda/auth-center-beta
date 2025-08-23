@@ -171,7 +171,7 @@ namespace AuthCenter.Controllers
 
         [HttpGet("getGroupWithApplication", Name = "GetGroupWithApplication")]
         [AllowAnonymous]
-        public JSONResult GetGroupWithApplication(string groupName, string? clientId)
+        public JSONResult GetGroupWithApplication(string groupName, string? clientId, int? applicationId)
         {
             if (clientId != null)
             {
@@ -191,6 +191,11 @@ namespace AuthCenter.Controllers
                 var application = _authCenterDbContext.Application.Where(app => app.ClientId == clientId)
                     .Select(app => new Models.Application { Id = app.Id, Name = app.Name, ProviderItems = app.ProviderItems }).AsNoTracking().FirstOrDefault();
                 group.DefaultApplication = application;
+            } else if (applicationId != null)
+            {
+                var application = _authCenterDbContext.Application.Where(app => app.Id == applicationId)
+                    .Select(app => new Models.Application { Id = app.Id, Name = app.Name, ProviderItems = app.ProviderItems }).AsNoTracking().FirstOrDefault();
+                group.DefaultApplication = application;
             } else
             {
                 var application = _authCenterDbContext.Application.Where(app => app.Id == group.DefaultApplicationId)
@@ -208,6 +213,7 @@ namespace AuthCenter.Controllers
             if (appProviderItems.Any())
             {
                 group.DefaultApplication.Providers = [.. _authCenterDbContext.Provider.Where(p => appProviderItems.Contains(p.Id)).Select(p => new Provider{
+                    Id = p.Id,
                     Name = p.Name,
                     DisplayName = p.DisplayName,
                     Type = p.Type,

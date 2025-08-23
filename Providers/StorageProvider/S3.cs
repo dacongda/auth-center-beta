@@ -30,7 +30,7 @@ namespace AuthCenter.Providers.StorageProvider
             string newFilename = $"{Guid.NewGuid():N}-{DateTimeOffset.Now.ToUnixTimeMilliseconds()}.{extension}";
             var request = new PutObjectRequest
             {
-                BucketName = bucket,
+                BucketName = _bucket,
                 Key = newFilename,
                 FilePath = _prefix,
                 InputStream = fileStream,
@@ -40,13 +40,13 @@ namespace AuthCenter.Providers.StorageProvider
             var resp = await client.PutObjectAsync(request);
 
             var urlBulder = new UriBuilder(_endpoint);
-            if(urlStyle == "Virtual-Host")
+            if(_urlStyle == "Virtual-Host")
             {
-                urlBulder.Host = $"{bucket}.{urlBulder.Host}";
+                urlBulder.Host = $"{_bucket}.{urlBulder.Host}";
                 urlBulder.Path = $"{_prefix}/{newFilename}";
             } else
             {
-                urlBulder.Path = $"{bucket}/{_prefix}/{newFilename}";
+                urlBulder.Path = $"{_bucket}/{_prefix}/{newFilename}";
             }
 
             return new StorageFileInfo

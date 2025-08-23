@@ -107,7 +107,7 @@ namespace AuthCenter.Controllers
 
                 if (request.TokenTypeHint == "")
                 {
-                    request.TokenTypeHint = claims.FindFirst("tokenType")!.Value;
+                    request.TokenTypeHint = claims.FindFirst("token_type")!.Value;
                 }
 
                 var jti = claims.FindFirstValue("jit") ?? "";

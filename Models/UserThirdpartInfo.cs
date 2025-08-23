@@ -10,5 +10,6 @@ namespace AuthCenter.Models
         public string ProviderName { get; set; } = "";
         public string ThirdPartId { get; set; } = "";
         public string UserId { get; set; } = "";
+        public string ThirdPartName { get; set; } = "";
     }
 }

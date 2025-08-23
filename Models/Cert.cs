@@ -1,7 +1,13 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Org.BouncyCastle.Crypto;
+using Org.BouncyCastle.Crypto.Signers;
+using Org.BouncyCastle.Math.EC.Rfc8032;
+using Org.BouncyCastle.OpenSsl;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Runtime.ConstrainedExecution;
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 
 namespace AuthCenter.Models
@@ -40,16 +46,18 @@ namespace AuthCenter.Models
         {
 
             var publicCert = X509CertificateLoader.LoadCertificate(Convert.FromBase64String(Certificate ?? ""));
-            var privateCert = X509CertificateLoader.LoadPkcs12(data: Convert.FromBase64String(PriviteKey ?? ""), password: null, keyStorageFlags: X509KeyStorageFlags.DefaultKeySet);
-
 
             if (CryptoAlgorithm == "RS")
             {
-                publicCert = publicCert.CopyWithPrivateKey(privateCert.GetRSAPrivateKey());
+                var rsa = RSA.Create();
+                rsa.ImportPkcs8PrivateKey(Convert.FromBase64String(PriviteKey ?? ""), out _);
+                publicCert = publicCert.CopyWithPrivateKey(rsa);
             }
             else if (CryptoAlgorithm == "ES")
             {
-                publicCert = publicCert.CopyWithPrivateKey(privateCert.GetECDsaPrivateKey());
+                var ecdsa = ECDsa.Create();
+                ecdsa.ImportPkcs8PrivateKey(Convert.FromBase64String(PriviteKey ?? ""), out _);
+                publicCert = publicCert.CopyWithPrivateKey(ecdsa);
             }
 
             return publicCert;
@@ -95,11 +103,11 @@ namespace AuthCenter.Models
             }
             if (CryptoAlgorithm == "RS")
             {
-                return publicCert.GetRSAPublicKey().ToXmlString(includePrivateKey);
+                return publicCert.GetRSAPublicKey()!.ToXmlString(includePrivateKey);
             }
             else if (CryptoAlgorithm == "ES")
             {
-                return publicCert.GetECDsaPrivateKey().ToXmlString(includePrivateKey);
+                return publicCert.GetECDsaPrivateKey()!.ToXmlString(includePrivateKey);
             }
 
             throw new Exception("type not supported");

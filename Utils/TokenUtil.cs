@@ -1,6 +1,7 @@
 ﻿using AuthCenter.Models;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.IdentityModel.Tokens;
+using Newtonsoft.Json;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 
@@ -21,9 +22,6 @@ namespace AuthCenter.Utils
             var allowedScope = application.Scopes?.Intersect(scopeList).ToArray() ?? [];
 
             var certKey = cert.ToSecurityKey();
-            //var signTp = cert.CryptoAlgorithm + cert.CryptoSHASize.ToString();
-
-            //var alogo = $"{cert.CryptoAlgorithm}{cert.CryptoSHASize}";
             var signingCredentials = new SigningCredentials(certKey, $"{cert.CryptoAlgorithm}{cert.CryptoSHASize}");
 
             return new JwtTokenPack
@@ -37,10 +35,15 @@ namespace AuthCenter.Utils
         public static string GenerateIdToken(string tokenId, User user, Application application, SigningCredentials signingCredentials, string[] scopes, string url, string? nonce)
         {
             var claims = new List<Claim> {
-                new ("sub", user.Id) ,
+                new ("sub", user.Id),
                 new ("jti", tokenId),
-                new ("tokenType", "id_token"),
+                new ("azp", application.ClientId ?? ""),
+                new ("token_type", "id_token"),
                 new ("iat", DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
+                new ("scope", string.Join(" ",scopes)),
+                new ("name", user.Name),
+                new ("preferred_name", user.Id),
+                new ("role", JsonConvert.SerializeObject(user.Roles ?? []), JsonClaimValueTypes.JsonArray)
             };
 
             if (nonce is not null)
@@ -57,14 +60,6 @@ namespace AuthCenter.Utils
             if (scopes.Contains("phone"))
             {
                 claims.Add(new("phone", user.Phone?.Replace(" ", "") ?? ""));
-            }
-
-            if (user.Roles != null)
-            {
-                foreach (var role in user.Roles)
-                {
-                    claims.Add(new Claim("role", role));
-                }
             }
 
             var jwtToken = new JwtSecurityToken(
@@ -85,7 +80,7 @@ namespace AuthCenter.Utils
                 new ("sub", user.Id) ,
                 new ("jti", tokenId),
                 new ("scope", string.Join(" ",scopes)),
-                new ("tokenType", tokenType),
+                new ("token_type", tokenType),
                 new ("iat", DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
             };
 

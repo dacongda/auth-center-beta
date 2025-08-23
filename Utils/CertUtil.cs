@@ -19,7 +19,7 @@ namespace AuthCenter.Utils
                 case 512: hashAlgorithmName = HashAlgorithmName.SHA512; break;
                 default: hashAlgorithmName = HashAlgorithmName.SHA256; break;
             }
-
+            
             switch (cryptoAlgorithm)
             {
                 case "RS":
@@ -51,7 +51,25 @@ namespace AuthCenter.Utils
             certRequest.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.DigitalSignature, critical: true));
             var newCert = certRequest.CreateSelfSigned(notBefore: DateTimeOffset.UtcNow, notAfter: (DateTimeOffset)notAfter);
 
-            var priKeyString = Convert.ToBase64String(newCert.Export(X509ContentType.Pkcs12));
+            string? priKeyString;
+            switch (cryptoAlgorithm)
+            {
+                case "RS":
+                    {
+                        priKeyString = Convert.ToBase64String(newCert.GetRSAPrivateKey()!.ExportPkcs8PrivateKey());
+                        break;
+                    }
+                case "ES":
+                    {
+                        priKeyString = Convert.ToBase64String(newCert.GetECDsaPrivateKey()!.ExportPkcs8PrivateKey());
+                        break;
+                    }
+                default:
+                    {
+                        priKeyString = Convert.ToBase64String(newCert.GetRSAPrivateKey()!.ExportPkcs8PrivateKey());
+                        break;
+                    }
+            }
             var pubKeyString = Convert.ToBase64String(newCert.Export(X509ContentType.Cert));
 
 

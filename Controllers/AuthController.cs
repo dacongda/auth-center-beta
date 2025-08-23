@@ -4,25 +4,17 @@ using AuthCenter.Models;
 using AuthCenter.Providers.IdProvider;
 using AuthCenter.Utils;
 using AuthCenter.ViewModels;
-using DocumentFormat.OpenXml.InkML;
-using DocumentFormat.OpenXml.Spreadsheet;
-using DocumentFormat.OpenXml.Wordprocessing;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.DataProtection;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
-using Microsoft.DotNet.Scaffolding.Shared;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.IdentityModel.Tokens;
 using OtpNet;
-using System;
 using System.ComponentModel.DataAnnotations;
 using System.IdentityModel.Tokens.Jwt;
-using System.Linq;
 using System.Security.Claims;
 using System.Text.Json;
 
@@ -133,7 +125,7 @@ namespace AuthCenter.Controllers
                 verifyPassword = true;
             }
 
-            Providers.IdProvider.UserInfo? userInfo = null;
+            UserInfo? userInfo = null;
             var loginVia = "default";
             if (loginUser.LoginMethod == "ThirdPart")
             {
@@ -152,7 +144,7 @@ namespace AuthCenter.Controllers
                     frontEndUrl = url;
                 }
 
-                var idProviderUtil = IIdProvider.GetIdProvider(idProvider, $"{frontEndUrl}/auth/callback", _cache);
+                var idProviderUtil = IIdProvider.GetIdProvider(idProvider, frontEndUrl, $"{frontEndUrl}/auth/callback", _cache);
 
                 userInfo = await idProviderUtil.getUserInfo(loginUser.Password);
                 var userId = _authCenterDbContext.UserThirdpartInfos
@@ -192,6 +184,7 @@ namespace AuthCenter.Controllers
                     ProviderName = loginUser.Code,
                     UserId = user.Id,
                     ThirdPartId = userInfo.Id,
+                    ThirdPartName = userInfo.Name,
                 };
 
                 _ = await _authCenterDbContext.AddAsync(userThirdPartInfo);
@@ -260,8 +253,7 @@ namespace AuthCenter.Controllers
                 byte[] bytes = Base32Encoding.ToBytes(user.TotpSecret);
                 var totp = new Totp(bytes);
 
-                long timeStampMatched;
-                return totp.VerifyTotp(code, out timeStampMatched, VerificationWindow.RfcSpecifiedNetworkDelay);
+                return totp.VerifyTotp(code, out long timeStampMatched, VerificationWindow.RfcSpecifiedNetworkDelay);
             }
             else if (mfaType == "Email")
             {
@@ -301,7 +293,7 @@ namespace AuthCenter.Controllers
                 var ans = _cache.GetString($"verification:code:{mfaVerifyId}");
                 return code == ans;
             }
-            else if(mfaType == "RecoveryCode")
+            else if (mfaType == "RecoveryCode")
             {
                 return code == user.RecoveryCode;
             }
@@ -424,7 +416,7 @@ namespace AuthCenter.Controllers
 
                 if (responseType.Contains("id_token") || responseType.Contains("token"))
                 {
-                    var tokenPack = TokenUtil.GenerateCodeToken(code, application.Cert!, user, application, url, scope, nonce);
+                    var tokenPack = TokenUtil.GenerateCodeToken(code, application.Cert!, user, application, frontEndUrl, scope, nonce);
                     if (responseType.Contains("id_token"))
                     {
                         dict["id_token"] = tokenPack.IdToken ?? "";
@@ -453,6 +445,7 @@ namespace AuthCenter.Controllers
             {
                 var rawSamlRequest = Request.Query["SAMLRequest"];
                 var rawRelayState = Request.Query["RelayState"];
+                var samlBinding = "";
                 if (String.IsNullOrEmpty(rawSamlRequest))
                 {
                     var samlId = Request.Query["samlId"];
@@ -463,6 +456,7 @@ namespace AuthCenter.Controllers
                     }
                     rawSamlRequest = rawQuery.Split("|")[0];
                     rawRelayState = rawQuery.Split("|")[1];
+                    samlBinding = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST";
                 }
 
                 var samlRequest = SamlUtil.ParseSamlRequest(rawSamlRequest.ToString());
@@ -483,7 +477,7 @@ namespace AuthCenter.Controllers
 
                 var respId = Guid.NewGuid().ToString("N");
 
-                foreach(var item in application.SamlRedirects)
+                foreach (var item in application.SamlRedirects)
                 {
                     if (item.Issuer == samlRequest.Issuer)
                     {
@@ -492,7 +486,9 @@ namespace AuthCenter.Controllers
                     }
                 }
 
-                var samlResponse = SamlUtil.GetSAMLResponse(user, application, url, frontEndUrl, samlRequest.AssertionConsumerServiceURL ?? "", samlRequest.Issuer, respId, samlRequest.ID);
+                var samlResponse = SamlUtil.GetSAMLResponse(user, application, frontEndUrl, 
+                    frontEndUrl, samlRequest.AssertionConsumerServiceURL ?? "", 
+                    samlRequest.Issuer, respId, application.SamlEncrypt, samlRequest.ID);
 
                 userSession.SessionId = respId;
                 userSession.LoginToken = "";
@@ -500,11 +496,16 @@ namespace AuthCenter.Controllers
                 _authCenterDbContext.UserSessions.Add(userSession);
                 _authCenterDbContext.SaveChangesAsync();
 
+                if (samlRequest.ProtocolBinding != "")
+                {
+                    samlBinding = samlRequest.ProtocolBinding;
+                }
+
                 return JSONResult.ResponseOk(new
                 {
                     samlResponse,
                     relayState = rawRelayState,
-                    samlBindingType = samlRequest.ProtocolBinding,
+                    samlBindingType = samlBinding,
                     redirectUrl = samlRequest.AssertionConsumerServiceURL
                 });
             }
@@ -845,7 +846,8 @@ namespace AuthCenter.Controllers
             }
 
             var app = await _authCenterDbContext.Application.Where(a => a.Id == request.ApplicationId).Include(a => a.Cert).FirstOrDefaultAsync();
-            if (app == null) {
+            if (app == null)
+            {
                 return JSONResult.ResponseError("应用不存在");
             }
             var res = VerifyCaptchaCode(app, request.CaptchaId, request.CaptchaCode, true);
@@ -855,8 +857,8 @@ namespace AuthCenter.Controllers
             }
 
             var mProviderItem = (from pItem in app.ProviderItems
-                             where pItem.Type == "Email" && pItem.Rule.Contains("ForgetPassword")
-                             select pItem).FirstOrDefault();
+                                 where pItem.Type == "Email" && pItem.Rule.Contains("ForgetPassword")
+                                 select pItem).FirstOrDefault();
             if (mProviderItem == null)
             {
                 return JSONResult.ResponseError("邮件提供商不存在或不支持忘记密码");
@@ -869,7 +871,8 @@ namespace AuthCenter.Controllers
             }
 
             var user = await _authCenterDbContext.User.Where(u => u.Email == request.Destination).Include(u => u.Group).FirstOrDefaultAsync();
-            if (user == null || user.GroupId == null) {
+            if (user == null || user.GroupId == null)
+            {
                 return JSONResult.ResponseError("用户不存在");
             }
 
@@ -908,13 +911,13 @@ namespace AuthCenter.Controllers
                 mProvider.ClientId!,
                 mProvider.ClientSecret!,
                 request.Destination,
-                mProvider.Subject!, 
+                mProvider.Subject!,
                 body);
 
             return JSONResult.ResponseOk();
         }
 
-        [HttpPost("resetPassword", Name= "ResetPassword")]
+        [HttpPost("resetPassword", Name = "ResetPassword")]
         [AllowAnonymous]
         public async Task<JSONResult> ResetPassword(ResetPasswordRequest request)
         {

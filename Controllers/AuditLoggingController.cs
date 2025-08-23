@@ -17,7 +17,7 @@ namespace AuthCenter.Controllers
         [Authorize(Roles = "admin")]
         public async Task<JSONResult> GetUserSessionList(int page, int pageSize)
         {
-            var sessionList = await _authCenterDbContext.UserSessions.Where(us => us.LoginType == "login").Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+            var sessionList = await _authCenterDbContext.UserSessions.Where(us => us.LoginType == "login").OrderByDescending(s => s.ExpiredAt).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
             var count = await _authCenterDbContext.Application.CountAsync();
             return JSONResult.ResponseList(sessionList, count);
         }
@@ -26,7 +26,7 @@ namespace AuthCenter.Controllers
         [Authorize(Roles = "admin,user")]
         public async Task<JSONResult> GetMySessionList(int page, int pageSize)
         {
-            var sessionList = await _authCenterDbContext.UserSessions.Where(us => us.LoginType == "login" && us.UserId == User.Identity!.Name).ToListAsync();
+            var sessionList = await _authCenterDbContext.UserSessions.Where(us => us.LoginType == "login" && us.UserId == User.Identity!.Name).OrderByDescending(s => s.ExpiredAt).ToListAsync();
             return JSONResult.ResponseOk(sessionList);
         }
     }

@@ -1,4 +1,6 @@
 ﻿using AuthCenter.Data;
+using AuthCenter.Utils;
+using AuthCenter.ViewModels;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
@@ -59,6 +61,40 @@ namespace AuthCenter.Controllers
             await _cache.SetStringAsync($"Login:SAML:SAMLID:{samlId}", $"{samlRequest}|{relayState}");
 
             return Redirect($"{frontEndUrl}/auth/login-saml/{clientId}?samlId={samlId}");
+        }
+
+        [HttpGet("getSamlRequest", Name = "Get saml request")]
+        public async Task<JSONResult> GetRequest(int id, bool isCompressed)
+        {
+            var provider = await _authCenterDbContext.Provider.FindAsync(id);
+            if (provider is null || provider.SubType != "SAML")
+            {
+                return JSONResult.ResponseError("无此提供商");
+            }
+
+            var url = Request.Scheme + "://" + Request.Host.Value;
+            var frontEndUrl = _configuration["FrontEndUrl"] ?? "";
+            if (frontEndUrl == null || frontEndUrl == "")
+            {
+                frontEndUrl = url;
+            }
+
+            var requestId = "a" + Guid.NewGuid().ToString("N");
+
+            var providerMetadata = SamlUtil.ParseSamlMetaData(provider.Body!);
+
+            var request = SamlUtil.GetSamlRequest(frontEndUrl, providerMetadata.Location, providerMetadata.BindingType, requestId, isCompressed);
+            _cache.SetString($"Login:SAML:Request{requestId}", provider.Name, new DistributedCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(300),
+            });
+
+            return JSONResult.ResponseOk(new
+            {
+                request,
+                providerMetadata.Location,
+                Binding = providerMetadata.BindingType,
+            });
         }
     }
 }

@@ -40,22 +40,11 @@ namespace AuthCenter.Data
 
         public override int SaveChanges()
         {
-            //var entityEntries = ChangeTracker.Entries().ToList();
-            //foreach (var entry in entityEntries)
-            //{
-            //    if (entry.State == EntityState.Added && !entry.Metadata.IsOwned() && entry.Entity is BaseModel)
-            //        Entry(entry.Entity).Property(nameof(BaseModel.CreatedAt)).CurrentValue = DateTime.UtcNow;
-
-            //    if (entry.State == EntityState.Modified && !entry.Metadata.IsOwned() && entry.Entity is BaseModel)
-            //        Entry(entry.Entity).Property(nameof(BaseModel.UpdatedAt)).CurrentValue = DateTime.UtcNow;
-            //}
-
             ChangeTracker.Entries().Where(e => e.State == EntityState.Added && (e.Entity is BaseModel)).ToList()
                 .ForEach(e => ((BaseModel)e.Entity).CreatedAt = DateTime.UtcNow);
 
             ChangeTracker.Entries().Where(e => e.State == EntityState.Modified && (e.Entity is BaseModel)).ToList()
                 .ForEach(e => ((BaseModel)e.Entity).UpdatedAt = DateTime.UtcNow);
-
 
             return base.SaveChanges();
         }
