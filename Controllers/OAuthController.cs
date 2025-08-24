@@ -22,6 +22,8 @@ namespace AuthCenter.Controllers
         private readonly AuthCenterDbContext _authCenterDbContext = authCenterDbContext;
         private readonly IConfiguration _configuration = configuration;
 
+        private string RequestUrl => ControllerUtils.GetFrontUrl(_configuration, Request);
+
         [HttpPost("token", Name = "Oauth token api")]
         [Authorize(AuthenticationSchemes = BasicAuthorizationHandler.BasicSchemeName, Roles = "app")]
         public IActionResult Token(string code, string? grant_type, string? redirect_uri, string? scopes)
@@ -74,13 +76,13 @@ namespace AuthCenter.Controllers
                 });
             }
 
-            var url = Request.Scheme + "://" + Request.Host.Value;
-            var frontEndUrl = _configuration["FrontEndUrl"] ?? "";
-            if (frontEndUrl == null || frontEndUrl == "")
-            {
-                frontEndUrl = url;
-            }
-            var tokenPack = TokenUtil.GenerateCodeToken(code, app.Cert, parsedLoginInfo.user, app, frontEndUrl, scopes ?? "", parsedLoginInfo.nonce);
+            //var url = Request.Scheme + "://" + Request.Host.Value;
+            //var frontEndUrl = _configuration["FrontEndUrl"] ?? "";
+            //if (frontEndUrl == null || frontEndUrl == "")
+            //{
+            //    frontEndUrl = url;
+            //}
+            var tokenPack = TokenUtil.GenerateCodeToken(code, app.Cert, parsedLoginInfo.user, app, RequestUrl, scopes ?? "", parsedLoginInfo.nonce);
 
             _cache.SetString($"Login:OAuth:Token:{code}", "1");
 

@@ -18,21 +18,15 @@ namespace AuthCenter.Utils
 
             message.Body = builder.ToMessageBody();
 
-            try
+
+            using (var client = new SmtpClient())
             {
-                using (var client = new SmtpClient())
-                {
-                    client.Connect(smtpServer, port, SecureSocketOptions.Auto);
-                    client.Authenticate(username, password);
-                    client.Send(message);
-                    client.Disconnect(true);
-                }
-                return true;
+                client.Connect(smtpServer, port, SecureSocketOptions.Auto);
+                client.Authenticate(username, password);
+                client.Send(message);
+                client.Disconnect(true);
             }
-            catch (Exception ex)
-            {
-                throw ex;
-            }
+            return true;
         }
     }
 }

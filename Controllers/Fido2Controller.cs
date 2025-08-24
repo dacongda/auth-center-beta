@@ -1,5 +1,6 @@
 ﻿using AuthCenter.Data;
 using AuthCenter.Models;
+using AuthCenter.Utils;
 using AuthCenter.ViewModels;
 using AuthCenter.ViewModels.Request;
 using Fido2NetLib;
@@ -22,7 +23,7 @@ namespace AuthCenter.Controllers
         private readonly ILogger<Fido2Controller> _logger = logger;
         private readonly IConfiguration _configuration = configuration;
 
-        private readonly string frontEndUrl = configuration["FrontEndUrl"] ?? "http://localhost";
+        private string RequestUrl => ControllerUtils.GetFrontUrl(_configuration, Request);
         private readonly string serverDomain = new Uri(configuration["FrontEndUrl"] ?? "").Host;
 
         [HttpGet("getUserCredentials", Name = "GetUserCedentials")]
@@ -39,7 +40,7 @@ namespace AuthCenter.Controllers
 
             var existingKeys = _authCenterDbContext.WebAuthnCredential.Where(c => c.UserId == User.Identity!.Name).ToList();
 
-            var origins = new HashSet<string>() { "https://localhost", frontEndUrl };
+            var origins = new HashSet<string>() { "https://localhost", RequestUrl };
 
             var fido2Config = new Fido2Configuration
             {
@@ -108,7 +109,7 @@ namespace AuthCenter.Controllers
                 return JSONResult.ResponseError("无此请求");
             }
 
-            var origins = new HashSet<string>() { "https://localhost", "http://localhost:5888", frontEndUrl };
+            var origins = new HashSet<string>() { "https://localhost", "http://localhost:5888", RequestUrl };
             var fido2Config = new Fido2Configuration
             {
                 ServerDomain = serverDomain,
@@ -171,7 +172,7 @@ namespace AuthCenter.Controllers
                 UserVerificationMethod = true,
             };
 
-            var origins = new HashSet<string>() { "https://localhost", frontEndUrl };
+            var origins = new HashSet<string>() { "https://localhost", RequestUrl };
 
             var fido2Config = new Fido2Configuration
             {
@@ -215,7 +216,7 @@ namespace AuthCenter.Controllers
 
             _ = _cache.RemoveAsync(clientResponse.CacheOptionId, cancellationToken);
 
-            var origins = new HashSet<string>() { "https://localhost", "http://localhost:5888", frontEndUrl };
+            var origins = new HashSet<string>() { "https://localhost", "http://localhost:5888", RequestUrl };
             var fido2Config = new Fido2Configuration
             {
                 ServerDomain = serverDomain,

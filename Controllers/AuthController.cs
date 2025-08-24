@@ -29,6 +29,7 @@ namespace AuthCenter.Controllers
         private readonly IDistributedCache _cache = cache;
         private readonly AuthCenterDbContext _authCenterDbContext = authCenterDbContext;
         private readonly IConfiguration _configuration = configuration;
+        private string RequestUrl => ControllerUtils.GetFrontUrl(_configuration, Request);
 
         [HttpPost("login", Name = "Login")]
         [Authorize(Roles = "admin,user")]
@@ -138,14 +139,14 @@ namespace AuthCenter.Controllers
 
                 var providerItem = curApplication.ProviderItems.Find(pi => pi.ProviderId == idProvider.Id);
 
-                var url = Request.Scheme + "://" + Request.Host.Value;
-                var frontEndUrl = _configuration["FrontEndUrl"] ?? "";
-                if (frontEndUrl == null || frontEndUrl == "")
-                {
-                    frontEndUrl = url;
-                }
+                //var url = Request.Scheme + "://" + Request.Host.Value;
+                //var frontEndUrl = _configuration["FrontEndUrl"] ?? "";
+                //if (frontEndUrl == null || frontEndUrl == "")
+                //{
+                //    frontEndUrl = url;
+                //}
 
-                var idProviderUtil = IIdProvider.GetIdProvider(idProvider, frontEndUrl, $"{frontEndUrl}/auth/callback", _cache);
+                var idProviderUtil = IIdProvider.GetIdProvider(idProvider, RequestUrl, $"{RequestUrl}/auth/callback", _cache);
 
                 userInfo = await idProviderUtil.getUserInfo(loginUser.Password);
                 var userId = _authCenterDbContext.UserThirdpartInfos
@@ -304,12 +305,12 @@ namespace AuthCenter.Controllers
 
         private JSONResult HandleUserLogin(LoginUser loginUser, User user, Application application, string loginVia)
         {
-            var url = Request.Scheme + "://" + Request.Host.Value;
-            var frontEndUrl = _configuration["FrontEndUrl"] ?? "";
-            if (frontEndUrl == null || frontEndUrl == "")
-            {
-                frontEndUrl = url;
-            }
+            //var url = Request.Scheme + "://" + Request.Host.Value;
+            //var frontEndUrl = _configuration["FrontEndUrl"] ?? "";
+            //if (frontEndUrl == null || frontEndUrl == "")
+            //{
+            //    frontEndUrl = url;
+            //}
 
             string clientIp = Request.Headers["X-Forwarded-For"].FirstOrDefault() ?? "";
 
@@ -417,7 +418,7 @@ namespace AuthCenter.Controllers
 
                 if (responseType.Contains("id_token") || responseType.Contains("token"))
                 {
-                    var tokenPack = TokenUtil.GenerateCodeToken(code, application.Cert!, user, application, frontEndUrl, scope, nonce);
+                    var tokenPack = TokenUtil.GenerateCodeToken(code, application.Cert!, user, application, RequestUrl, scope, nonce);
                     if (responseType.Contains("id_token"))
                     {
                         dict["id_token"] = tokenPack.IdToken ?? "";
@@ -487,8 +488,8 @@ namespace AuthCenter.Controllers
                     }
                 }
 
-                var samlResponse = SamlUtil.GetSAMLResponse(user, application, frontEndUrl, 
-                    frontEndUrl, samlRequest.AssertionConsumerServiceURL ?? "", 
+                var samlResponse = SamlUtil.GetSAMLResponse(user, application, RequestUrl, 
+                    RequestUrl, samlRequest.AssertionConsumerServiceURL ?? "", 
                     samlRequest.Issuer, respId, application.SamlEncrypt, samlRequest.ID);
 
                 userSession.SessionId = respId;
@@ -882,12 +883,12 @@ namespace AuthCenter.Controllers
                 return JSONResult.ResponseError("用户不存在");
             }
 
-            var url = Request.Scheme + "://" + Request.Host.Value;
-            var frontEndUrl = _configuration["FrontEndUrl"] ?? "";
-            if (frontEndUrl == null || frontEndUrl == "")
-            {
-                frontEndUrl = url;
-            }
+            //var url = Request.Scheme + "://" + Request.Host.Value;
+            //var frontEndUrl = _configuration["FrontEndUrl"] ?? "";
+            //if (frontEndUrl == null || frontEndUrl == "")
+            //{
+            //    frontEndUrl = url;
+            //}
 
             var tokenId = Guid.NewGuid().ToString();
             var cert = app.Cert!;
@@ -896,14 +897,14 @@ namespace AuthCenter.Controllers
             var signingCredentials = new SigningCredentials(certKey, $"{cert.CryptoAlgorithm}{cert.CryptoSHASize}");
 
             app.AccessExpiredSecond = 300;
-            var forgetToken = TokenUtil.GenerateToken(tokenId, user, app, signingCredentials, "forget_password", [], url, "");
+            var forgetToken = TokenUtil.GenerateToken(tokenId, user, app, signingCredentials, "forget_password", [], RequestUrl, "");
 
             await _cache.SetStringAsync($"Login:Forget:Token:{tokenId}", "1", new DistributedCacheEntryOptions
             {
                 AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(300)
             });
 
-            var resetLink = $"{frontEndUrl}/auth/confirm-forget/{user.Group!.Name}?token={forgetToken}";
+            var resetLink = $"{RequestUrl}/auth/confirm-forget/{user.Group!.Name}?token={forgetToken}";
             var body = mProvider.LinkBody?.Replace("%link%", resetLink) ?? "";
 
             EmailUtils.SendEmail(mProvider.ConfigureUrl!,

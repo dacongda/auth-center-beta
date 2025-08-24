@@ -1,8 +1,10 @@
 ﻿using AuthCenter.Data;
+using AuthCenter.Utils;
 using AuthCenter.ViewModels;
 using AuthCenter.ViewModels.Response;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
+using Org.BouncyCastle.Asn1.Ocsp;
 using System.Security.Cryptography.X509Certificates;
 
 namespace AuthCenter.Controllers
@@ -14,26 +16,27 @@ namespace AuthCenter.Controllers
 
         private readonly AuthCenterDbContext _authCenterDbContext = authCenterDbContext;
         private readonly IConfiguration _configuration = configuration;
+        private string RequestUrl => ControllerUtils.GetFrontUrl(_configuration, Request);
 
         [HttpGet("openid-configuration", Name = "openid-configuration")]
         public IActionResult OpenidConfiguration()
         {
-            var url = Request.Scheme + "://" + Request.Host.Value;
-            var frontEndUrl = _configuration["frontEndUrl"];
-            if (frontEndUrl == null || frontEndUrl == "")
-            {
-                frontEndUrl = url;
-            }
+            //var url = Request.Scheme + "://" + Request.Host.Value;
+            //var frontEndUrl = _configuration["frontEndUrl"];
+            //if (frontEndUrl == null || frontEndUrl == "")
+            //{
+            //    frontEndUrl = url;
+            //}
 
             var config = new OpenidConfiguration
             {
-                issuer = frontEndUrl,
-                authorization_endpoint = frontEndUrl + "/auth/login",
-                token_endpoint = url + "/api/oauth/token",
-                userinfo_endpoint = url + "/api/user/userinfo",
-                jwks_uri = url + "/.well-known/jwks",
-                introspection_endpoint = url + "/api/oauth/introspect",
-                end_session_endpoint = url + "/api/auth/logout",
+                issuer = RequestUrl,
+                authorization_endpoint = RequestUrl + "/auth/login",
+                token_endpoint = RequestUrl + "/api/oauth/token",
+                userinfo_endpoint = RequestUrl + "/api/user/userinfo",
+                jwks_uri = RequestUrl + "/.well-known/jwks",
+                introspection_endpoint = RequestUrl + "/api/oauth/introspect",
+                end_session_endpoint = RequestUrl + "/api/auth/logout",
                 scopes_supported = ["phone", "email", "profile"],
                 response_types_supported = ["code", "code id_token", "id_token", "id_token token", "code id_token token"],
                 response_modes_supported = ["query", "fragment", "form_post"],

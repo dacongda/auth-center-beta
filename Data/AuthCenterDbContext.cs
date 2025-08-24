@@ -154,7 +154,7 @@ namespace AuthCenter.Data
                         });
 
                         defaultGroup = context.Set<Group>().FirstOrDefault(g => g.Name == "built-in");
-                        defaultGroup.DefaultApplicationId = 1;
+                        defaultGroup!.DefaultApplicationId = 1;
                         context.Set<Group>().Update(defaultGroup);
                     }
 

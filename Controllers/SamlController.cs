@@ -16,15 +16,17 @@ namespace AuthCenter.Controllers
         private readonly IConfiguration _configuration = configuration;
         private readonly IDistributedCache _cache = cache;
 
+        private string RequestUrl => ControllerUtils.GetFrontUrl(_configuration, Request);
+
         [HttpGet("metadata/{clientId}", Name = "Saml metadata")]
         public IActionResult Metadata(string clientId)
         {
             var url = Request.Scheme + "://" + Request.Host.Value;
-            var frontEndUrl = _configuration["FrontEndUrl"] ?? "";
-            if (frontEndUrl == null || frontEndUrl == "")
-            {
-                frontEndUrl = url;
-            }
+            //var frontEndUrl = _configuration["FrontEndUrl"] ?? "";
+            //if (frontEndUrl == null || frontEndUrl == "")
+            //{
+            //    frontEndUrl = url;
+            //}
 
             var rawClientId = clientId.Split("-")[0];
             var application = _authCenterDbContext.Application.Where(app => app.ClientId == rawClientId).Include(app => app.Cert).FirstOrDefault();
@@ -34,7 +36,7 @@ namespace AuthCenter.Controllers
             }
             application.ClientId = clientId;
 
-            var metadata = Utils.SamlUtil.GetSAMLMetadata(url, frontEndUrl, application);
+            var metadata = Utils.SamlUtil.GetSAMLMetadata(url, RequestUrl, application);
 
             return new ContentResult
             {

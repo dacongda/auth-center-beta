@@ -279,7 +279,7 @@ namespace AuthCenter.Controllers
 
             if (oldGroup.Name != group.Name)
             {
-                group.ParentChain = group.ParentChain?.Replace(oldGroup.Name, group.Name);
+                group.ParentChain = group.ParentChain?.Replace(oldGroup.Name, group.Name) ?? "";
             }
 
             if (oldGroup.ParentId != group.ParentId)

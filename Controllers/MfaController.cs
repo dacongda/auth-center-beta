@@ -26,7 +26,7 @@ namespace AuthCenter.Controllers
         public async Task<JSONResult> EnableMfaSetup(WebAuthnRequest<string> request)
         {
             var userId = await _cache.GetStringAsync($"Auth:Verify:MFA:{request.CacheOptionId}");
-            if (userId != User.Identity.Name)
+            if (userId != User.Identity!.Name)
             {
                 return JSONResult.ResponseError("认证失效");
             }
@@ -56,7 +56,7 @@ namespace AuthCenter.Controllers
 
                 var curUser = HttpContext.Items["user"] as User;
 
-                var app = await _authCenterDbContext.Application.FindAsync(curUser.loginApplication);
+                var app = await _authCenterDbContext.Application.FindAsync(curUser!.loginApplication);
                 if (app == null)
                 {
                     return JSONResult.ResponseError("认证失效");
@@ -80,8 +80,8 @@ namespace AuthCenter.Controllers
                     return JSONResult.ResponseError("未过冷却期");
                 }
 
-                var body = provider.Body.Replace("%code%", code);
-                Utils.EmailUtils.SendEmail(provider.ConfigureUrl, provider.Port.Value, provider.EnableSSL.Value, provider.ClientId, provider.ClientSecret, curUser.Email, provider.Subject, body);
+                var body = provider.Body!.Replace("%code%", code);
+                Utils.EmailUtils.SendEmail(provider.ConfigureUrl!, provider.Port!.Value, provider.EnableSSL!.Value, provider.ClientId!, provider.ClientSecret!, curUser.Email!, provider.Subject!, body);
                 await _cache.SetStringAsync($"verification:code:{curUser.Email}", "1", new DistributedCacheEntryOptions
                 {
                     AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(60),
@@ -216,7 +216,7 @@ namespace AuthCenter.Controllers
             }
 
             var userId = await _cache.GetStringAsync($"Auth:Verify:MFA:{request.CacheOptionId}");
-            if (userId != User.Identity.Name)
+            if (userId != User.Identity!.Name)
             {
                 return JSONResult.ResponseError("认证失效");
             }
