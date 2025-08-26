@@ -1,10 +1,8 @@
 ﻿using AuthCenter.Data;
 using AuthCenter.Utils;
-using AuthCenter.ViewModels;
 using AuthCenter.ViewModels.Response;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
-using Org.BouncyCastle.Asn1.Ocsp;
 using System.Security.Cryptography.X509Certificates;
 
 namespace AuthCenter.Controllers

@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Options;
-using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net.Http.Headers;
 using System.Security;
@@ -63,7 +62,8 @@ namespace AuthCenter.Handler
                 var tokenId = jti.Split("-")[0];
 
                 var isValid = _cache.GetString($"Login:OAuth:Token:{tokenId}");
-                if (isValid == null) {
+                if (isValid == null)
+                {
                     _failReason = "invalid_token";
                     _failReasonDescription = "Token expored";
                     return Task.FromResult(AuthenticateResult.Fail("Token expored"));
@@ -79,9 +79,11 @@ namespace AuthCenter.Handler
 
                 var app = _authCenterDbContext.Application.Where(app => app.ClientId == clientId).Include(p => p.Cert).First();
 
-                try { 
+                try
+                {
                     _ = TokenUtil.ValidateToken(headerValue.Parameter!, app, Context.Request.GetDisplayUrl());
-                } catch (Exception ex)
+                }
+                catch (Exception ex)
                 {
                     _failReason = "invalid_token";
                     _failReasonDescription = ex.Message;
@@ -96,10 +98,11 @@ namespace AuthCenter.Handler
                     return Task.FromResult(AuthenticateResult.Fail("用户不存在"));
                 }
 
-                if(user.IsAdmin)
+                if (user.IsAdmin)
                 {
                     user.Roles.Append("admin");
-                } else
+                }
+                else
                 {
                     user.Roles.Append("user");
                 }

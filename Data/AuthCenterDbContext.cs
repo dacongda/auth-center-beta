@@ -2,7 +2,6 @@
 using AuthCenter.Utils;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
-using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Microsoft.EntityFrameworkCore.Query;
 using NuGet.Protocol;
 using System.Linq.Expressions;
@@ -84,7 +83,7 @@ namespace AuthCenter.Data
                 .OwnsMany(e => e.ProviderItems, builder =>
                 {
                     builder.ToJson();
-                    builder.WithOwner().HasForeignKey(f=>f.FakeId);
+                    builder.WithOwner().HasForeignKey(f => f.FakeId);
                 });
 
             modelBuilder.Entity<Application>()

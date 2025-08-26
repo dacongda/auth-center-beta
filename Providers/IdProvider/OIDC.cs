@@ -1,21 +1,16 @@
-﻿using Amazon.Runtime.Internal.Endpoints.StandardLibrary;
-using AuthCenter.Models;
-using DocumentFormat.OpenXml.Drawing;
-using DocumentFormat.OpenXml.Office2010.Excel;
-using DocumentFormat.OpenXml.Wordprocessing;
+﻿using AuthCenter.Models;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.VisualStudio.Web.CodeGenerators.Mvc.Templates.BlazorIdentity.Pages.Manage;
+using Mono.TextTemplating;
 using Newtonsoft.Json.Linq;
-using NuGet.Common;
 using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
 using System.Text.Json;
 
 namespace AuthCenter.Providers.IdProvider
 {
-    public class OIDC(string clientId, string clientSecret, bool useUserEndpoint, 
+    public class OIDC(string clientId, string clientSecret, bool useUserEndpoint,
         string tokenEndpoint, string userInfoEndpoint, string jwksEndpoint, string jwks,
-        string tokenType, string redirectUri, UserInfoMap userInfoMap) : IIdProvider
+        string tokenType, string redirectUri, UserInfoMap userInfoMap, IDistributedCache cache) : IIdProvider
     {
         private readonly string _clientId = clientId;
         private readonly string _clientSecret = clientSecret;
@@ -27,6 +22,7 @@ namespace AuthCenter.Providers.IdProvider
         private readonly bool _useUserEndpoint = useUserEndpoint;
         private readonly string _redirectUri = redirectUri;
         private readonly UserInfoMap _userInfoMap = userInfoMap;
+        private readonly IDistributedCache _cache = cache;
 
         public class TokenResponse
         {
@@ -35,14 +31,15 @@ namespace AuthCenter.Providers.IdProvider
             public string IdToken { get; set; } = string.Empty;
         }
 
-        public async Task<UserInfo> getUserInfo(string code)
+        public async Task<UserInfo> getUserInfo(string code, string? state, string? tempId)
         {
             if (_tokenType == "id_token")
             {
                 return await GetUserInfoByIdToken(code);
-            } else
+            }
+            else
             {
-                return await GetUserInfoByCode(code);
+                return await GetUserInfoByCode(code, state, tempId);
             }
         }
 
@@ -85,7 +82,7 @@ namespace AuthCenter.Providers.IdProvider
             {
                 var claims = (await new JwtSecurityTokenHandler().ValidateTokenAsync(idToken, validateParameter)).Claims;
 
-                var infoRoot = new JObject(claims);
+                var infoRoot = JObject.FromObject(claims);
                 var id = infoRoot.SelectToken(_userInfoMap.Id);
                 var name = infoRoot.SelectToken(_userInfoMap.Name);
                 var preferredName = infoRoot.SelectToken(_userInfoMap.PreferredName);
@@ -107,7 +104,7 @@ namespace AuthCenter.Providers.IdProvider
             }
         }
 
-        private async Task<UserInfo> GetUserInfoByCode(string code)
+        private async Task<UserInfo> GetUserInfoByCode(string code, string? state, string? tempId)
         {
             using (var client = new HttpClient())
             {
@@ -122,6 +119,25 @@ namespace AuthCenter.Providers.IdProvider
                     {"client_id", _clientId},
                     {"client_secret", _clientSecret}
                 };
+
+                if (String.IsNullOrEmpty(tempId))
+                {
+                    throw new Exception("tempId required");
+                }
+
+                var challengeState = await _cache.GetStringAsync($"Bind:OAuth:{tempId}");
+                if (challengeState == null)
+                {
+                    throw new Exception("error tempId");
+                }
+                _ = _cache.RemoveAsync($"Bind:OAuth:{tempId}");
+                var parsedChallengeState = challengeState.Split(",");
+                requestParams.Add("code_verifier", parsedChallengeState[0]);
+
+                if (state != parsedChallengeState[1])
+                {
+                    throw new Exception("state check failed");
+                }
 
                 var request = new HttpRequestMessage(HttpMethod.Post, _tokenEndpoint)
                 {

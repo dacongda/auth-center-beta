@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Pipelines.Sockets.Unofficial.Arenas;
-using static System.Net.Mime.MediaTypeNames;
 
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -191,12 +190,14 @@ namespace AuthCenter.Controllers
                 var application = _authCenterDbContext.Application.Where(app => app.ClientId == clientId)
                     .Select(app => new Models.Application { Id = app.Id, Name = app.Name, ProviderItems = app.ProviderItems }).AsNoTracking().FirstOrDefault();
                 group.DefaultApplication = application;
-            } else if (applicationId != null)
+            }
+            else if (applicationId != null)
             {
                 var application = _authCenterDbContext.Application.Where(app => app.Id == applicationId)
                     .Select(app => new Models.Application { Id = app.Id, Name = app.Name, ProviderItems = app.ProviderItems }).AsNoTracking().FirstOrDefault();
                 group.DefaultApplication = application;
-            } else
+            }
+            else
             {
                 var application = _authCenterDbContext.Application.Where(app => app.Id == group.DefaultApplicationId)
                     .Select(app => new Models.Application { Id = app.Id, Name = app.Name, ProviderItems = app.ProviderItems }).AsNoTracking().FirstOrDefault();
@@ -292,21 +293,22 @@ namespace AuthCenter.Controllers
 
                 group.ParentChain = parentNew.ParentChain + $"/{group.Name}";
                 group.TopId = (parentNew.TopId == null || parentNew.TopId == 0) ? parentNew.Id : parentNew.TopId;
-            } else
+            }
+            else
             {
                 group.ParentChain = oldGroup.ParentChain;
                 group.TopId = oldGroup.TopId;
             }
 
-                var updated = _authCenterDbContext.Group
-                        .Where(g => g.Id == group.Id).ExecuteUpdate(s =>
-                    s.SetProperty(g => g.Name, group.Name)
-                    .SetProperty(g => g.DefaultRoles, group.DefaultRoles)
-                    .SetProperty(g => g.DefaultApplicationId, group.DefaultApplicationId)
-                    .SetProperty(g => g.ParentId, group.ParentId)
-                    .SetProperty(g => g.TopId, group.TopId)
-                    .SetProperty(g => g.ParentChain, group.ParentChain)
-                    .SetProperty(g => g.DisplayName, group.DisplayName));
+            var updated = _authCenterDbContext.Group
+                    .Where(g => g.Id == group.Id).ExecuteUpdate(s =>
+                s.SetProperty(g => g.Name, group.Name)
+                .SetProperty(g => g.DefaultRoles, group.DefaultRoles)
+                .SetProperty(g => g.DefaultApplicationId, group.DefaultApplicationId)
+                .SetProperty(g => g.ParentId, group.ParentId)
+                .SetProperty(g => g.TopId, group.TopId)
+                .SetProperty(g => g.ParentChain, group.ParentChain)
+                .SetProperty(g => g.DisplayName, group.DisplayName));
 
             if (updated <= 0)
             {

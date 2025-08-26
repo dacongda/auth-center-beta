@@ -1,7 +1,6 @@
 ﻿using MailKit.Net.Smtp;
 using MailKit.Security;
 using MimeKit;
-using System.Text;
 namespace AuthCenter.Utils
 {
     public class EmailUtils

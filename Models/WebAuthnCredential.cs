@@ -6,7 +6,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace AuthCenter.Models
 {
     [Index(nameof(UserId))]
-    public class WebAuthnCredential: BaseModelWithoutId
+    public class WebAuthnCredential : BaseModelWithoutId
     {
         [Key]
         public required string Id { get; set; }

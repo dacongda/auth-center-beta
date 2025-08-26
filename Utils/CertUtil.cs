@@ -19,7 +19,7 @@ namespace AuthCenter.Utils
                 case 512: hashAlgorithmName = HashAlgorithmName.SHA512; break;
                 default: hashAlgorithmName = HashAlgorithmName.SHA256; break;
             }
-            
+
             switch (cryptoAlgorithm)
             {
                 case "RS":

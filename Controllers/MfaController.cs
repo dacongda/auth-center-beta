@@ -3,14 +3,11 @@ using AuthCenter.Models;
 using AuthCenter.ViewModels;
 using AuthCenter.ViewModels.Request;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using Newtonsoft.Json;
 using OtpNet;
-using System.Security.Cryptography;
-using System.Text;
 
 namespace AuthCenter.Controllers
 {
@@ -179,7 +176,7 @@ namespace AuthCenter.Controllers
         }
 
         [HttpPost("setPreferredMfa", Name = "SetPreferredMfa")]
-        public async Task<JSONResult> SetPreferredMfa([FromBody]dynamic data)
+        public async Task<JSONResult> SetPreferredMfa([FromBody] dynamic data)
         {
             var user = HttpContext.Items["user"] as User;
             if (user is null)

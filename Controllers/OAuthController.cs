@@ -2,15 +2,19 @@
 using AuthCenter.Handler;
 using AuthCenter.Models;
 using AuthCenter.Utils;
+using AuthCenter.ViewModels;
 using AuthCenter.ViewModels.Request;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.IdentityModel.Tokens;
 using Newtonsoft.Json;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace AuthCenter.Controllers
 {
@@ -50,7 +54,7 @@ namespace AuthCenter.Controllers
                 });
             }
 
-            var loginInfo = new { nonce = "", state = "", user = new User { Name = "", Id = "" }, redirect_uri = "" };
+            var loginInfo = new { nonce = "", state = "", user = new User { Name = "", Id = "" }, redirect_uri = "", codeChallenge = "", codeChallengeMethod = "" };
             var parsedLoginInfo = JsonConvert.DeserializeAnonymousType(jwtInfos, loginInfo, new JsonSerializerSettings { MissingMemberHandling = MissingMemberHandling.Ignore });
 
             if (parsedLoginInfo == null)
@@ -61,6 +65,32 @@ namespace AuthCenter.Controllers
                     error = "invalid_grant",
                     error_description = "code invalid or expired"
                 });
+            }
+
+            if (string.IsNullOrEmpty(loginInfo.codeChallenge))
+            {
+                var codeVerifier = Request.Query["code_verifier"];
+                var codeChallengeMatch = false;
+                if (loginInfo.codeChallengeMethod == "plain" || loginInfo.codeChallenge is null)
+                {
+                    codeChallengeMatch = loginInfo.codeChallenge == codeVerifier;
+                }
+                else if (loginInfo.codeChallenge == "S256")
+                {
+                    var hashValue = SHA256.HashData(Encoding.UTF8.GetBytes(codeVerifier.ToString()));
+
+                    codeChallengeMatch = loginInfo.codeChallenge == Base64UrlTextEncoder.Encode(hashValue);
+                }
+
+                if (!codeChallengeMatch)
+                {
+                    Response.StatusCode = StatusCodes.Status400BadRequest;
+                    return Json(new
+                    {
+                        error = "invalid_request",
+                        error_description = "Code verifier incorrect"
+                    });
+                }
             }
 
             _cache.Remove($"Login:OAuth:Code:{code}");
@@ -76,12 +106,6 @@ namespace AuthCenter.Controllers
                 });
             }
 
-            //var url = Request.Scheme + "://" + Request.Host.Value;
-            //var frontEndUrl = _configuration["FrontEndUrl"] ?? "";
-            //if (frontEndUrl == null || frontEndUrl == "")
-            //{
-            //    frontEndUrl = url;
-            //}
             var tokenPack = TokenUtil.GenerateCodeToken(code, app.Cert, parsedLoginInfo.user, app, RequestUrl, scopes ?? "", parsedLoginInfo.nonce);
 
             _cache.SetString($"Login:OAuth:Token:{code}", "1");
@@ -145,5 +169,72 @@ namespace AuthCenter.Controllers
                 });
             }
         }
+
+        [HttpGet("getOAuthRequest", Name = "Get oauth request")]
+        public async Task<JSONResult> GetRequest(int id, string type)
+        {
+            var provider = await _authCenterDbContext.Provider.FindAsync(id);
+            if (provider is null || (provider.SubType != "OAuth2" && provider.SubType != "OIDC"))
+            {
+                return JSONResult.ResponseError("无此提供商");
+            }
+
+            var rng = RandomNumberGenerator.Create();
+            byte[] bytes = new byte[64];
+            rng.GetBytes(bytes);
+            var challenge = Base64UrlEncoder.Encode(bytes);
+            var challengeMethod = "S256";
+
+            byte[] stateBytes = new byte[32];
+            rng.GetBytes(stateBytes);
+            var state = Base64UrlEncoder.Encode(stateBytes);
+
+            var tempId = Guid.NewGuid().ToString("N");
+
+            if (type == "bind")
+            {
+                var token = Request.Headers.Authorization;
+                await _cache.SetStringAsync($"Bind:OAuth:{token}", $"{challenge},{state}", new DistributedCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(300)
+                });
+            }
+            else
+            {
+                await _cache.SetStringAsync($"Bind:OAuth:{tempId}", $"{challenge},{state}", new DistributedCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(300)
+                });
+            }
+
+            var responseType = provider.TokenType;
+            if (String.IsNullOrEmpty(responseType))
+            {
+                responseType = "code";
+            }
+
+            var challengeBytes = SHA256.HashData(Encoding.UTF8.GetBytes(challenge ?? ""));
+            var redirectUrl = new UriBuilder(provider.AuthEndpoint!);
+            var queryData = new Dictionary<string, string>() {
+                { "client_id", provider.ClientId!},
+                { "redirect_uri", $"{RequestUrl}/auth/callback" },
+                { "code_challenge", Base64UrlTextEncoder.Encode(challengeBytes) },
+                { "code_challenge_method", challengeMethod ?? "" },
+                { "response_type", responseType  }};
+
+            if (provider.Scopes != null && String.IsNullOrEmpty(provider.Scopes))
+            {
+                queryData.Add("scope", provider.Scopes);
+            }
+            queryData.Add("state", state);
+            redirectUrl.Query = await new FormUrlEncodedContent(queryData).ReadAsStringAsync();
+
+            return JSONResult.ResponseOk(new
+            {
+                redirectUrl = redirectUrl.ToString(),
+                tempId
+            });
+        }
+
     }
 }

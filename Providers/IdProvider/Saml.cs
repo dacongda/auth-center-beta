@@ -10,7 +10,7 @@ namespace AuthCenter.Providers.IdProvider
         private readonly UserInfoMap _userInfoMap = userInfoMap ?? new UserInfoMap { };
         private readonly IDistributedCache _cache = cache;
 
-        public async Task<UserInfo> getUserInfo(string samlResponse)
+        public async Task<UserInfo> getUserInfo(string samlResponse, string? state, string? tempId)
         {
             var providerInfo = SamlUtil.ParseSamlMetaData(_idpMetadata);
             UserInfo userinfo = SamlUtil.ParseSamlResponseData(samlResponse, providerInfo.Cert, providerInfo.EntityID, url, _userInfoMap, out string requestId);

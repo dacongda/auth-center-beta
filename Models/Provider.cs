@@ -1,6 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 
 namespace AuthCenter.Models
 {
@@ -40,7 +39,7 @@ namespace AuthCenter.Models
          * Endpoint for S3
          */
         public string? ConfigureUrl { get; set; }
-        
+
         public string? AuthEndpoint { get; set; }
         public string? TokenEndpoint { get; set; }
         public string? UserInfoEndpoint { get; set; }

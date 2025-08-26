@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using StackExchange.Redis;
-using System.Configuration;
 using System.Diagnostics;
 var builder = WebApplication.CreateBuilder(args);
 
@@ -37,7 +36,7 @@ builder.Services.AddControllers().ConfigureApiBehaviorOptions(options =>
 
         return new JsonResult(JSONResult.ResponseError(error.Title?.ToString() ?? ""));
     };
-}).AddXmlDataContractSerializerFormatters().AddJsonOptions(options=>
+}).AddXmlDataContractSerializerFormatters().AddJsonOptions(options =>
 {
     options.JsonSerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
 });

@@ -4,7 +4,6 @@ using AuthCenter.ViewModels;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
-using System.Threading.Tasks;
 
 namespace AuthCenter.Controllers
 {
@@ -60,7 +59,10 @@ namespace AuthCenter.Controllers
             var relayState = Request.Form["RelayState"];
 
             var samlId = Guid.NewGuid().ToString();
-            await _cache.SetStringAsync($"Login:SAML:SAMLID:{samlId}", $"{samlRequest}|{relayState}");
+            await _cache.SetStringAsync($"Login:SAML:SAMLID:{samlId}", $"{samlRequest}|{relayState}", new DistributedCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(300)
+            });
 
             return Redirect($"{frontEndUrl}/auth/login-saml/{clientId}?samlId={samlId}");
         }
@@ -74,28 +76,22 @@ namespace AuthCenter.Controllers
                 return JSONResult.ResponseError("无此提供商");
             }
 
-            var url = Request.Scheme + "://" + Request.Host.Value;
-            var frontEndUrl = _configuration["FrontEndUrl"] ?? "";
-            if (frontEndUrl == null || frontEndUrl == "")
-            {
-                frontEndUrl = url;
-            }
-
             var requestId = "a" + Guid.NewGuid().ToString("N");
-
             var providerMetadata = SamlUtil.ParseSamlMetaData(provider.Body!);
-
-            var request = SamlUtil.GetSamlRequest(frontEndUrl, providerMetadata.Location, providerMetadata.BindingType, requestId, isCompressed);
+            var request = SamlUtil.GetSamlRequest(RequestUrl, providerMetadata.Location, providerMetadata.BindingType, requestId, isCompressed);
             _cache.SetString($"Login:SAML:Request{requestId}", provider.Name, new DistributedCacheEntryOptions
             {
                 AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(300),
             });
+
+            var replayState = $"AC-{Guid.NewGuid().ToString("N")}";
 
             return JSONResult.ResponseOk(new
             {
                 request,
                 providerMetadata.Location,
                 Binding = providerMetadata.BindingType,
+                replayState
             });
         }
     }

@@ -39,7 +39,7 @@ namespace AuthCenter.Controllers
             var responseType = Request.Query["response_type"];
             var clientId = Request.Query["client_id"];
 
-            // 获取组织与app
+            // fetch organization and default application
             var group = _authCenterDbContext.Group.Where(g => g.Name == loginUser.GroupName).Include(g => g.DefaultApplication).AsNoTracking().First();
             if (group == null)
             {
@@ -58,7 +58,7 @@ namespace AuthCenter.Controllers
 
             var curApplication = group.DefaultApplication;
 
-            // 处理MFA验证
+            // check MFA
             if (loginUser.IsMfaVerify)
             {
                 var userObjStr = _cache.GetString($"mfa:verify:{loginUser.CaptchaId}") ?? "";
@@ -89,7 +89,7 @@ namespace AuthCenter.Controllers
                 return HandleUserLogin(loginUser, dbUser, curApplication, userObj.LoginVia);
             }
 
-            // 登陆至第三方
+            // Thirdpart login
             if (loginUser.Type != "login" && loginUser.Type != "bind")
             {
                 var rawClientId = clientId.ToString().Split("-", 2)[0];
@@ -105,6 +105,7 @@ namespace AuthCenter.Controllers
                 }
             }
 
+            // normal login process
             if (loginUser.LoginMethod != "ThirdPart")
             {
                 var captchaVerifyRes = VerifyCaptchaCode(curApplication, loginUser.CaptchaId, loginUser.Code, false);
@@ -114,8 +115,8 @@ namespace AuthCenter.Controllers
                 }
             }
 
+            // Process passkey
             var verifyPassword = false;
-
             if (loginUser.LoginMethod == "Passkey")
             {
                 loginUser.Name = _cache.GetString("WebAuthn:login:" + loginUser.Password) ?? "";
@@ -127,6 +128,7 @@ namespace AuthCenter.Controllers
                 verifyPassword = true;
             }
 
+            // Login through third part
             UserInfo? userInfo = null;
             var loginVia = "default";
             if (loginUser.LoginMethod == "ThirdPart")
@@ -138,17 +140,9 @@ namespace AuthCenter.Controllers
                 }
 
                 var providerItem = curApplication.ProviderItems.Find(pi => pi.ProviderId == idProvider.Id);
+                var idProviderUtil = IIdProvider.GetIdProvider(idProvider, RequestUrl, $"{RequestUrl}/auth/callback", loginUser.CaptchaId, _cache);
 
-                //var url = Request.Scheme + "://" + Request.Host.Value;
-                //var frontEndUrl = _configuration["FrontEndUrl"] ?? "";
-                //if (frontEndUrl == null || frontEndUrl == "")
-                //{
-                //    frontEndUrl = url;
-                //}
-
-                var idProviderUtil = IIdProvider.GetIdProvider(idProvider, RequestUrl, $"{RequestUrl}/auth/callback", _cache);
-
-                userInfo = await idProviderUtil.getUserInfo(loginUser.Password);
+                userInfo = await idProviderUtil.getUserInfo(loginUser.Password, loginUser.State, loginUser.TempId);
                 var userId = _authCenterDbContext.UserThirdpartInfos
                     .Where(uti => uti.ProviderName == idProvider.Name && uti.ThirdPartId == userInfo.Id)
                     .Select(uti => uti.UserId).FirstOrDefault();
@@ -168,12 +162,14 @@ namespace AuthCenter.Controllers
                 verifyPassword = true;
             }
 
+            // fetch user
             var user = _authCenterDbContext.User.Where(u => u.Id == loginUser.Name).Include(p => p.Group).AsNoTracking().FirstOrDefault();
             if (user == null || group.TopId == 0 ? user?.GroupId != group.Id : user?.Group?.TopId != group.Id)
             {
                 return JSONResult.ResponseError("无此用户");
             }
 
+            // process bind third part
             if (loginUser.Type == "bind")
             {
                 if (userInfo == null)
@@ -194,6 +190,7 @@ namespace AuthCenter.Controllers
                 return JSONResult.ResponseOk("成功");
             }
 
+            // Check user's password
             if (loginUser.LoginMethod == "Password")
             {
                 try
@@ -215,7 +212,7 @@ namespace AuthCenter.Controllers
                 return JSONResult.ResponseError("密码错误");
             }
 
-            // 要求MFA
+            // If user enable MFA, check mfa
             if ((user.EnableEmailMfa || user.EnablePhoneMfa || user.EnableTotpMfa) && loginUser.LoginMethod != "Passkey")
             {
                 var avaliableMfa = new List<string>();
@@ -305,13 +302,6 @@ namespace AuthCenter.Controllers
 
         private JSONResult HandleUserLogin(LoginUser loginUser, User user, Application application, string loginVia)
         {
-            //var url = Request.Scheme + "://" + Request.Host.Value;
-            //var frontEndUrl = _configuration["FrontEndUrl"] ?? "";
-            //if (frontEndUrl == null || frontEndUrl == "")
-            //{
-            //    frontEndUrl = url;
-            //}
-
             string clientIp = Request.Headers["X-Forwarded-For"].FirstOrDefault() ?? "";
 
             // 如果为空，则使用 REMOTE_ADDR
@@ -332,7 +322,8 @@ namespace AuthCenter.Controllers
             };
 
             var responseType = Request.Query["response_type"];
-            // 登陆系统管理页
+
+            // Login to manage system
             if (loginUser.Type == "login")
             {
                 var tokenString = user.Id.ToString() + ":" + Guid.NewGuid().ToString();
@@ -380,7 +371,7 @@ namespace AuthCenter.Controllers
 
             if (loginUser.Type == "oauth")
             {
-                // 使用oidc code登陆
+                // Oauth / oidc login
                 var redirectUrl = Request.Query["redirect_uri"];
                 var scope = Request.Query["scope"].ToString();
                 var state = Request.Query["state"].ToString();
@@ -403,10 +394,15 @@ namespace AuthCenter.Controllers
 
                 if (responseType.Contains("code"))
                 {
-                    _cache.SetString($"Login:OAuth:Code:${code}", JsonSerializer.Serialize(new
+                    var codeChallengeMethod = Request.Query["code_challenge_method"];
+                    var codeChallenge = Request.Query["code_challenge"];
+
+                    _cache.SetString($"Login:OAuth:Code:{code}", JsonSerializer.Serialize(new
                     {
                         nonce,
                         state,
+                        codeChallengeMethod,
+                        codeChallenge,
                         user,
                     }), new DistributedCacheEntryOptions
                     {
@@ -429,10 +425,13 @@ namespace AuthCenter.Controllers
                         dict["token"] = tokenPack.AccessToken ?? "";
                     }
 
-                    _cache.SetString($"Login:OAuth:Code:${code}", "1", new DistributedCacheEntryOptions
+                    if (!responseType.Contains("code"))
                     {
-                        AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(application.ExpiredSecond),
-                    });
+                        _cache.SetString($"Login:OAuth:Code:{code}", "1", new DistributedCacheEntryOptions
+                        {
+                            AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(application.ExpiredSecond),
+                        });
+                    }
                 }
 
                 userSession.SessionId = code;
@@ -445,6 +444,7 @@ namespace AuthCenter.Controllers
             }
             else if (loginUser.Type == "saml")
             {
+                // SAML login
                 var rawSamlRequest = Request.Query["SAMLRequest"];
                 var rawRelayState = Request.Query["RelayState"];
                 var samlBinding = "";
@@ -488,8 +488,8 @@ namespace AuthCenter.Controllers
                     }
                 }
 
-                var samlResponse = SamlUtil.GetSAMLResponse(user, application, RequestUrl, 
-                    RequestUrl, samlRequest.AssertionConsumerServiceURL ?? "", 
+                var samlResponse = SamlUtil.GetSAMLResponse(user, application, RequestUrl,
+                    RequestUrl, samlRequest.AssertionConsumerServiceURL ?? "",
                     samlRequest.Issuer, respId, application.SamlEncrypt, samlRequest.ID);
 
                 userSession.SessionId = respId;

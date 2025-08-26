@@ -6,7 +6,7 @@ namespace AuthCenter.ViewModels.Request
     {
         [Required]
         public string Token { get; set; } = string.Empty;
-        
-        public string TokenTypeHint {  get; set; } = string.Empty;
+
+        public string TokenTypeHint { get; set; } = string.Empty;
     }
 }

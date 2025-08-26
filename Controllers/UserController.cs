@@ -1,29 +1,18 @@
-﻿using AuthCenter.Captcha;
-using AuthCenter.Data;
+﻿using AuthCenter.Data;
 using AuthCenter.Handler;
 using AuthCenter.Models;
 using AuthCenter.Providers.StorageProvider;
-using AuthCenter.Utils;
 using AuthCenter.ViewModels;
 using AuthCenter.ViewModels.Request;
-using DocumentFormat.OpenXml.Packaging;
-using DocumentFormat.OpenXml.Spreadsheet;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Components.Forms;
-using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.Extensions.Caching.Distributed;
-using Microsoft.IdentityModel.Tokens;
-using Microsoft.NET.StringTools;
 using NPOI.XSSF.UserModel;
 using SkiaSharp;
 using System.ComponentModel.DataAnnotations;
 using System.Linq.Expressions;
-using System.Reflection;
-using System.Reflection.Metadata;
-using System.Text.Json;
 
 namespace AuthCenter.Controllers
 {
@@ -107,7 +96,8 @@ namespace AuthCenter.Controllers
             for (var i = 0; i < headerRow.LastCellNum; i++)
             {
                 var cellVal = headerRow.GetCell(i).ToString();
-                if (String.IsNullOrEmpty(cellVal)) {
+                if (String.IsNullOrEmpty(cellVal))
+                {
                     continue;
                 }
 
@@ -120,7 +110,7 @@ namespace AuthCenter.Controllers
             var addUserList = new List<User>();
             var failUserList = new List<User>();
 
-            for(var i = 1; i <= sheet.LastRowNum; i++)
+            for (var i = 1; i <= sheet.LastRowNum; i++)
             {
                 var row = sheet.GetRow(i);
                 var user = new User();
@@ -138,24 +128,29 @@ namespace AuthCenter.Controllers
                     if (field.PropertyType == typeof(string))
                     {
                         cellVal = row.GetCell(key)?.ToString() ?? null;
-                    } else if(field.PropertyType == typeof(int) || field.PropertyType == typeof(int?))
+                    }
+                    else if (field.PropertyType == typeof(int) || field.PropertyType == typeof(int?))
                     {
                         cellVal = (int)row.GetCell(key).NumericCellValue;
-                    } else if(field.PropertyType == typeof(bool) || field.PropertyType == typeof(bool?))
+                    }
+                    else if (field.PropertyType == typeof(bool) || field.PropertyType == typeof(bool?))
                     {
                         cellVal = row.GetCell(key).ToString() == "T";
-                    } else if(field.PropertyType == typeof(string[]))
+                    }
+                    else if (field.PropertyType == typeof(string[]))
                     {
                         var cellStr = row.GetCell(key).ToString() ?? "";
                         if (cellStr == "")
                         {
                             cellVal = Array.Empty<string>();
-                        } else
+                        }
+                        else
                         {
                             cellVal = cellStr.Split(",");
                         }
-                            
-                    } else
+
+                    }
+                    else
                     {
                         continue;
                     }
@@ -183,7 +178,7 @@ namespace AuthCenter.Controllers
 
             return JSONResult.ResponseOk(new
             {
-                SuccessImportList = upsertedUser.Select(u => new { u.Id, u.Name, u.Email, u.Phone, u.Roles, u.IsAdmin}),
+                SuccessImportList = upsertedUser.Select(u => new { u.Id, u.Name, u.Email, u.Phone, u.Roles, u.IsAdmin }),
                 FailImportList = failUserList.Select(u => new { u.Id, u.Name, u.Email, u.Phone, u.Roles, u.IsAdmin }),
             });
         }
@@ -309,12 +304,14 @@ namespace AuthCenter.Controllers
             }
 
             var app = await _authCenterDbContext.Application.FindAsync(user.loginApplication);
-            if (app == null) {
+            if (app == null)
+            {
                 return JSONResult.ResponseError("无此应用");
             }
 
             var storageProviderItem = app.ProviderItems.Where(pItem => pItem.Type == "Storage").FirstOrDefault();
-            if (storageProviderItem == null) {
+            if (storageProviderItem == null)
+            {
                 return JSONResult.ResponseError("无存储提供商");
             }
 
@@ -464,6 +461,7 @@ namespace AuthCenter.Controllers
             if (appProviderItems.Any())
             {
                 application.Providers = [.. _authCenterDbContext.Provider.Where(p => appProviderItems.Contains(p.Id)).Select(p => new Provider{
+                    Id = p.Id,
                     Name = p.Name,
                     DisplayName = p.DisplayName,
                     Type = p.Type,

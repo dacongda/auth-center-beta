@@ -1,5 +1,4 @@
-﻿using AuthCenter.ViewModels;
-using Microsoft.Extensions.Caching.Distributed;
+﻿using Microsoft.Extensions.Caching.Distributed;
 
 namespace AuthCenter.Captcha
 {
@@ -17,7 +16,8 @@ namespace AuthCenter.Captcha
             }
 
             var ans = _cache.GetString(captchaId);
-            if (ans == null) {
+            if (ans == null)
+            {
                 return false;
             }
             _cache.Remove(captchaId);

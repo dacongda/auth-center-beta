@@ -3,7 +3,6 @@ using AuthCenter.ViewModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Linq;
 
 namespace AuthCenter.Controllers
 {
@@ -22,7 +21,7 @@ namespace AuthCenter.Controllers
             return JSONResult.ResponseList(sessionList, count);
         }
 
-        [HttpGet("getMySessionList", Name  = "GetMySessionList")]
+        [HttpGet("getMySessionList", Name = "GetMySessionList")]
         [Authorize(Roles = "admin,user")]
         public async Task<JSONResult> GetMySessionList(int page, int pageSize)
         {

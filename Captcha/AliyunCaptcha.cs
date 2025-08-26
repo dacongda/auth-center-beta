@@ -1,5 +1,5 @@
-﻿using AlibabaCloud.SDK.Captcha20230305.Models;
-using AlibabaCloud.SDK.Captcha20230305;
+﻿using AlibabaCloud.SDK.Captcha20230305;
+using AlibabaCloud.SDK.Captcha20230305.Models;
 using AlibabaCloud.TeaUtil.Models;
 
 namespace AuthCenter.Captcha
@@ -12,7 +12,8 @@ namespace AuthCenter.Captcha
 
         public bool VerifyCode(string captchaId, string code)
         {
-            var config = new AlibabaCloud.OpenApiClient.Models.Config {
+            var config = new AlibabaCloud.OpenApiClient.Models.Config
+            {
                 AccessKeyId = _clientId,
                 AccessKeySecret = _clientSercet,
                 Endpoint = "captcha.cn-shanghai.aliyuncs.com",
@@ -35,7 +36,8 @@ namespace AuthCenter.Captcha
                 }
 
                 return false;
-            } catch (Exception)
+            }
+            catch (Exception)
             {
                 return false;
             }

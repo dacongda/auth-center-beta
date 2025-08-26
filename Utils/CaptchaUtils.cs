@@ -1,7 +1,4 @@
-﻿
-using AuthCenter.Models;
-using Microsoft.Extensions.Caching.Distributed;
-using SkiaSharp;
+﻿using SkiaSharp;
 using System.Reflection;
 
 namespace AuthCenter.Utils
@@ -28,7 +25,8 @@ namespace AuthCenter.Utils
         ];
         private static SKTypeface DefaultFont;
 
-        static CaptchaUtils() { 
+        static CaptchaUtils()
+        {
             var assembly = Assembly.GetExecutingAssembly();
             var names = assembly.GetManifestResourceNames();
             var actionjFont = assembly.GetManifestResourceStream("AuthCenter.Assets.actionj.ttf");

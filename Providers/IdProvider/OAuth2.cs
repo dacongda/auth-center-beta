@@ -1,11 +1,14 @@
 ﻿using AuthCenter.Models;
+using Microsoft.Extensions.Caching.Distributed;
 using Newtonsoft.Json.Linq;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 
 namespace AuthCenter.Providers.IdProvider
 {
-    public class OAuth2(string clientId, string clientSecret, string tokenEndpoint, string userInfoEndpoint, string tokenType, string redirectUri, UserInfoMap userInfoMap) : IIdProvider
+    public class OAuth2(string clientId, string clientSecret,
+        string tokenEndpoint, string userInfoEndpoint,
+        string tokenType, string redirectUri,
+        UserInfoMap userInfoMap, IDistributedCache cache) : IIdProvider
     {
         private readonly string _clientId = clientId;
         private readonly string _clientSecret = clientSecret;
@@ -14,6 +17,7 @@ namespace AuthCenter.Providers.IdProvider
         private readonly string _userInfoEndpoint = userInfoEndpoint;
         private readonly string _redirectUri = redirectUri;
         private readonly UserInfoMap _userInfoMap = userInfoMap;
+        private readonly IDistributedCache _cache = cache;
 
         public class TokenResponse
         {
@@ -22,7 +26,7 @@ namespace AuthCenter.Providers.IdProvider
             public string IdToken { get; set; } = string.Empty;
         }
 
-        public async Task<UserInfo> getUserInfo(string code)
+        public async Task<UserInfo> getUserInfo(string code, string? state, string? tempId)
         {
             using (var client = new HttpClient())
             {
@@ -37,6 +41,25 @@ namespace AuthCenter.Providers.IdProvider
                     {"client_id", _clientId},
                     {"client_secret", _clientSecret}
                 };
+
+                if (String.IsNullOrEmpty(tempId))
+                {
+                    throw new Exception("tempId required");
+                }
+
+                var challengeState = await _cache.GetStringAsync($"Bind:OAuth:{tempId}");
+                if (challengeState == null)
+                {
+                    throw new Exception("error tempId");
+                }
+                _ = _cache.RemoveAsync($"Bind:OAuth:{tempId}");
+                var parsedChallengeState = challengeState.Split(",");
+                requestParams.Add("code_verifier", parsedChallengeState[0]);
+
+                if (state != parsedChallengeState[1])
+                {
+                    throw new Exception("state check failed");
+                }
 
                 var request = new HttpRequestMessage(HttpMethod.Post, _tokenEndpoint)
                 {
@@ -64,7 +87,7 @@ namespace AuthCenter.Providers.IdProvider
 
                 var infoResponse = await client.SendAsync(infoRequest);
                 var infoResponseContent = await infoResponse.Content.ReadAsStringAsync();
-                
+
                 var infoRoot = JObject.Parse(infoResponseContent);
 
                 var id = infoRoot.SelectToken(_userInfoMap.Id);

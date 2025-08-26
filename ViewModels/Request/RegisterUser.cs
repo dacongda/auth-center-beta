@@ -17,11 +17,11 @@ namespace AuthCenter.ViewModels.Request
         public string EmailVerifyId { get; set; } = string.Empty;
         public string EmailVerifyCode { get; set; } = string.Empty;
         public string PhoneVerifyId { get; set; } = string.Empty;
-        
+
         public string PhoneVerifyCode { get; set; } = string.Empty;
         public string GroupName { get; set; } = string.Empty;
 
-        public string Code { get; set; } = string.Empty;        
+        public string Code { get; set; } = string.Empty;
         public string CaptchaId { get; set; } = string.Empty;
     }
 }

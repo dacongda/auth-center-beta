@@ -3,10 +3,8 @@ using AuthCenter.Models;
 using AuthCenter.Utils;
 using AuthCenter.ViewModels;
 using AuthCenter.ViewModels.Request;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Linq;
 
 namespace AuthCenter.Controllers
 {
@@ -19,9 +17,12 @@ namespace AuthCenter.Controllers
         [HttpGet("list", Name = "GetProviderList")]
         public JSONResult List(int? page, int? pageSize)
         {
-            if (pageSize is not null && pageSize is not null)
+            if (page is not null && pageSize is not null)
             {
-                var providerPageList = _authCenterDbContext.Provider.Select(p => new {p.Id, p.Name, p.Type, p.SubType}).Skip((int)((page ?? 0 - 1) * pageSize)).Take((int)pageSize).ToList();
+                var providerPageList = _authCenterDbContext.Provider
+                    .Select(p => new { p.Id, p.Name, p.Type, p.SubType })
+                    .Skip((int)((page - 1) * pageSize))
+                    .Take((int)pageSize).ToList();
                 var count = _authCenterDbContext.Provider.Count();
                 return JSONResult.ResponseList(providerPageList, count);
             }
@@ -80,7 +81,8 @@ namespace AuthCenter.Controllers
                 var body = provider.Body!.Replace("%code%", "123456");
                 EmailUtils.SendEmail(provider.ConfigureUrl!, provider.Port!.Value, provider.EnableSSL!.Value, provider.ClientId!, provider.ClientSecret!, provider.Destination!, provider.Subject!, body);
             }
-            catch (Exception ex) { 
+            catch (Exception ex)
+            {
                 return JSONResult.ResponseError(ex.ToString());
             }
 

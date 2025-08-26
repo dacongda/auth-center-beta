@@ -40,11 +40,12 @@ namespace AuthCenter.Providers.StorageProvider
             var resp = await client.PutObjectAsync(request);
 
             var urlBulder = new UriBuilder(_endpoint);
-            if(_urlStyle == "Virtual-Host")
+            if (_urlStyle == "Virtual-Host")
             {
                 urlBulder.Host = $"{_bucket}.{urlBulder.Host}";
                 urlBulder.Path = $"{_prefix}/{newFilename}";
-            } else
+            }
+            else
             {
                 urlBulder.Path = $"{_bucket}/{_prefix}/{newFilename}";
             }

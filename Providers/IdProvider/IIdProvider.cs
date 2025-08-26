@@ -14,20 +14,20 @@ namespace AuthCenter.Providers.IdProvider
 
     public interface IIdProvider
     {
-        public Task<UserInfo> getUserInfo(string code);
+        public Task<UserInfo> getUserInfo(string code, string? state, string? tempId);
 
-        public static IIdProvider GetIdProvider(Provider provider, string url, string redirectUri, IDistributedCache cache)
+        public static IIdProvider GetIdProvider(Provider provider, string url, string redirectUri, string tempId, IDistributedCache cache)
         {
             if (provider.SubType == "OAuth2")
             {
-                return new OAuth2(provider.ClientId ?? "", provider.ClientSecret ?? "", provider.TokenEndpoint ?? "", 
-                    provider.UserInfoEndpoint ?? "", provider.TokenType ?? "", redirectUri, provider.UserInfoMap!);
+                return new OAuth2(provider.ClientId ?? "", provider.ClientSecret ?? "", provider.TokenEndpoint ?? "",
+                    provider.UserInfoEndpoint ?? "", provider.TokenType ?? "", redirectUri, provider.UserInfoMap!, cache);
             }
             else if (provider.SubType == "OIDC")
             {
-                return new OIDC(provider.ClientId ?? "", provider.ClientSecret ?? "", provider.EnableSSL ?? false, 
+                return new OIDC(provider.ClientId ?? "", provider.ClientSecret ?? "", provider.EnableSSL ?? false,
                     provider.TokenEndpoint ?? "", provider.UserInfoEndpoint!, provider.JwksEndpoint!,
-                    provider.Body!, provider.TokenType!, redirectUri, provider.UserInfoMap!);
+                    provider.Body!, provider.TokenType!, redirectUri, provider.UserInfoMap!, cache);
             }
             else if (provider.SubType == "SAML")
             {
