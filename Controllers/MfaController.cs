@@ -53,7 +53,7 @@ namespace AuthCenter.Controllers
 
                 var curUser = HttpContext.Items["user"] as User;
 
-                var app = await _authCenterDbContext.Application.FindAsync(curUser!.loginApplication);
+                var app = await _authCenterDbContext.Application.FindAsync(curUser!.LoginApplication);
                 if (app == null)
                 {
                     return JSONResult.ResponseError("认证失效");

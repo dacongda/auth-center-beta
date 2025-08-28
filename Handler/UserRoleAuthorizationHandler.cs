@@ -52,7 +52,7 @@ namespace AuthCenter.Handler
                 return Task.FromResult(AuthenticateResult.Fail("token错误"));
             }
 
-            dbUser.loginApplication = user.LoginApplication;
+            dbUser.LoginApplication = user.LoginApplication;
 
             var gi = new GenericIdentity(dbUser.Id);
             var principal = new ClaimsPrincipal();

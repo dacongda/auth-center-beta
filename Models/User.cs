@@ -81,7 +81,7 @@ namespace AuthCenter.Models
         public string RecoveryCode { get; set; } = "";
         public Group? Group { get; set; }
         [NotMapped]
-        public int loginApplication { get; set; } = 0;
+        public int LoginApplication { get; set; } = 0;
 
         public bool VerifyPassword(string password)
         {

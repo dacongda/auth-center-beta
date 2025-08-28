@@ -221,6 +221,7 @@ namespace AuthCenter.Controllers
                     SubType = p.SubType,
                     FaviconUrl = p.FaviconUrl,
                     ClientId = p.ClientId,
+                    SceneId = p.SceneId,
                     AuthEndpoint = p.AuthEndpoint,
                     Scopes = p.Scopes
                 })];

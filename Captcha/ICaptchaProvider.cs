@@ -13,7 +13,7 @@ namespace AuthCenter.Captcha
             }
             else if (provider.SubType == "Aliyun")
             {
-                return new AliyunCaptcha(provider.ClientId ?? "", provider.ClientSecret ?? "", provider.ConfigureUrl ?? "");
+                return new AliyunCaptcha(provider.ClientId ?? "", provider.ClientSecret ?? "", provider.SceneId ?? "");
             }
 
             throw new NotImplementedException();

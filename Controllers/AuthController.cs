@@ -76,7 +76,7 @@ namespace AuthCenter.Controllers
                     return JSONResult.ResponseError("用户不存在");
                 }
 
-                dbUser.loginApplication = userObj.LoginApplication;
+                dbUser.LoginApplication = userObj.LoginApplication;
                 if (!VerifyMfa(dbUser, loginUser.LoginMethod, loginUser.Code, loginUser.Password))
                     return JSONResult.ResponseError("MFA认证失败");
 
@@ -225,6 +225,8 @@ namespace AuthCenter.Controllers
                     Id = user.Id,
                     LoginApplication = curApplication.Id,
                     LoginVia = loginVia,
+                    Email = user.Email ?? "",
+                    Phone = user.Phone ?? "",
                 };
 
                 var mfaVerifyId = Guid.NewGuid().ToString("N");
@@ -265,7 +267,7 @@ namespace AuthCenter.Controllers
                 var res = secret.Split(':');
                 var validTime = Convert.ToInt32(res?[1]);
                 var ans = res?[0];
-                var destination = res?[3];
+                var destination = res?[2];
                 if (user.Email != destination)
                 {
                     return false;
@@ -752,7 +754,7 @@ namespace AuthCenter.Controllers
                 {
                     return JSONResult.ResponseError("未指定应用");
                 }
-                request.ApplicationId = curUser.loginApplication;
+                request.ApplicationId = curUser.LoginApplication;
             }
 
 
@@ -984,7 +986,7 @@ namespace AuthCenter.Controllers
             }
 
 
-            if (captchaId == "" || captchaCode == "")
+            if (captchaId == "" && captchaCode == "")
             {
                 return "需要填写验证码";
             }

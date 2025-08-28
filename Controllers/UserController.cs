@@ -222,7 +222,7 @@ namespace AuthCenter.Controllers
 
             var curUser = HttpContext.Items["user"] as User;
 
-            var app = await _authCenterDbContext.Application.FindAsync(curUser!.loginApplication);
+            var app = await _authCenterDbContext.Application.FindAsync(curUser!.LoginApplication);
             var providerItem = (from pItem in app?.ProviderItems where pItem.Type == request.Type select pItem).FirstOrDefault();
 
             if (app == null)
@@ -303,7 +303,7 @@ namespace AuthCenter.Controllers
                 return JSONResult.ResponseError("服务器错误");
             }
 
-            var app = await _authCenterDbContext.Application.FindAsync(user.loginApplication);
+            var app = await _authCenterDbContext.Application.FindAsync(user.LoginApplication);
             if (app == null)
             {
                 return JSONResult.ResponseError("无此应用");
@@ -450,7 +450,7 @@ namespace AuthCenter.Controllers
                 return JSONResult.ResponseError("用户信息无效");
             }
             var user = HttpContext.Items["user"] as User;
-            var application = _authCenterDbContext.Application.Find(user!.loginApplication);
+            var application = _authCenterDbContext.Application.Find(user!.LoginApplication);
             if (application == null)
             {
                 Response.StatusCode = 401;
