@@ -1,6 +1,7 @@
 using AuthCenter.Data;
 using AuthCenter.Handler;
 using AuthCenter.ViewModels;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
@@ -50,6 +51,13 @@ builder.Services.AddSingleton(ConnectionMultiplexer.Connect(builder.Configuratio
 
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
@@ -81,6 +89,8 @@ app.Use(async (context, next) =>
 
 var currentDir = Directory.GetCurrentDirectory();
 var baseDir = Path.Combine(currentDir, builder.Configuration.GetConnectionString("baseDir") ?? "./upload");
+
+app.UseForwardedHeaders();
 
 app.UseStaticFiles(new StaticFileOptions
 {

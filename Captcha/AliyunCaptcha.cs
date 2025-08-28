@@ -10,7 +10,7 @@ namespace AuthCenter.Captcha
         private readonly string _clientSercet = clientSercet;
         private readonly string _scene = scene;
 
-        public bool VerifyCode(string _, string code)
+        public bool VerifyCode(string _, string code, string userIp)
         {
             var config = new AlibabaCloud.OpenApiClient.Models.Config
             {

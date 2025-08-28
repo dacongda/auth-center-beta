@@ -223,7 +223,11 @@ namespace AuthCenter.Controllers
             var curUser = HttpContext.Items["user"] as User;
 
             var app = await _authCenterDbContext.Application.FindAsync(curUser!.LoginApplication);
-            var providerItem = (from pItem in app?.ProviderItems where pItem.Type == request.Type select pItem).FirstOrDefault();
+
+            var realType = request.Type;
+            if (realType == "Phone") realType = "SMS";
+
+            var providerItem = (from pItem in app?.ProviderItems where pItem.Type == realType select pItem).FirstOrDefault();
 
             if (app == null)
             {
@@ -267,8 +271,30 @@ namespace AuthCenter.Controllers
             {
                 if (providerItem is not null)
                 {
-                    // TODO: realize phone verification
-                    return JSONResult.ResponseError("尚未实现");
+                    var secret = await _cache.GetStringAsync($"verification:sms:{request.CodeId}");
+                    if (String.IsNullOrEmpty(secret))
+                    {
+                        return JSONResult.ResponseError("认证失效");
+                    }
+
+                    var res = secret.Split(':');
+                    var validTime = Convert.ToInt32(res[1]);
+                    var code = res[0];
+                    if (Convert.ToInt32(validTime) == 0)
+                    {
+                        await _cache.RemoveAsync($"verification:sms:{request.CodeId}");
+                        return JSONResult.ResponseError("验证码失效");
+                    }
+
+
+                    if (code != request.Code)
+                    {
+                        await _cache.SetStringAsync($"verification:sms:{request.CodeId}", $"{code}:{validTime - 1}", new DistributedCacheEntryOptions
+                        {
+                            AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(300),
+                        });
+                        return JSONResult.ResponseError("认证失效");
+                    }
                 }
 
                 _authCenterDbContext.User.Where(u => u.Id == curUser.Id).ExecuteUpdate(s => s.SetProperty(u => u.Phone, request.Phone).SetProperty(u => u.PhoneVerified, true));
@@ -457,7 +483,7 @@ namespace AuthCenter.Controllers
                 return JSONResult.ResponseError("用户信息无效");
             }
 
-            var appProviderItems = (from pItem in application.ProviderItems where pItem.Type == "Captcha" || pItem.Type == "Auth" select pItem.ProviderId).ToList();
+            var appProviderItems = (from pItem in application.ProviderItems where pItem.Type == "Captcha" || pItem.Type == "Auth" || pItem.Type == "SMS" select pItem.ProviderId).ToList();
             if (appProviderItems.Any())
             {
                 application.Providers = [.. _authCenterDbContext.Provider.Where(p => appProviderItems.Contains(p.Id)).Select(p => new Provider{
@@ -468,6 +494,7 @@ namespace AuthCenter.Controllers
                     SubType = p.SubType,
                     FaviconUrl = p.FaviconUrl,
                     ClientId = p.ClientId,
+                    SceneId = p.SceneId,
                     AuthEndpoint = p.AuthEndpoint,
                     Scopes = p.Scopes
                 })];

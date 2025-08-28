@@ -188,19 +188,43 @@ namespace AuthCenter.Controllers
             if (clientId != null)
             {
                 var application = _authCenterDbContext.Application.Where(app => app.ClientId == clientId)
-                    .Select(app => new Models.Application { Id = app.Id, Name = app.Name, ProviderItems = app.ProviderItems }).AsNoTracking().FirstOrDefault();
+                    .Select(app => new Application
+                    {
+                        Id = app.Id,
+                        Name = app.Name,
+                        DisplayName = app.DisplayName,
+                        FaviconUrl = app.FaviconUrl,
+                        LogoUrl = app.LogoUrl,
+                        ProviderItems = app.ProviderItems
+                    }).AsNoTracking().FirstOrDefault();
                 group.DefaultApplication = application;
             }
             else if (applicationId != null)
             {
                 var application = _authCenterDbContext.Application.Where(app => app.Id == applicationId)
-                    .Select(app => new Models.Application { Id = app.Id, Name = app.Name, ProviderItems = app.ProviderItems }).AsNoTracking().FirstOrDefault();
+                    .Select(app => new Application
+                    {
+                        Id = app.Id,
+                        Name = app.Name,
+                        DisplayName = app.DisplayName,
+                        FaviconUrl = app.FaviconUrl,
+                        LogoUrl = app.LogoUrl,
+                        ProviderItems = app.ProviderItems
+                    }).AsNoTracking().FirstOrDefault();
                 group.DefaultApplication = application;
             }
             else
             {
                 var application = _authCenterDbContext.Application.Where(app => app.Id == group.DefaultApplicationId)
-                    .Select(app => new Models.Application { Id = app.Id, Name = app.Name, ProviderItems = app.ProviderItems }).AsNoTracking().FirstOrDefault();
+                    .Select(app => new Application
+                    {
+                        Id = app.Id,
+                        Name = app.Name,
+                        DisplayName = app.DisplayName,
+                        FaviconUrl = app.FaviconUrl,
+                        LogoUrl = app.LogoUrl,
+                        ProviderItems = app.ProviderItems
+                    }).AsNoTracking().FirstOrDefault();
                 group.DefaultApplication = application;
             }
 
@@ -210,7 +234,7 @@ namespace AuthCenter.Controllers
             }
 
             var app = group.DefaultApplication;
-            var appProviderItems = (from pItem in app.ProviderItems where pItem.Type == "Captcha" || pItem.Type == "Auth" select pItem.ProviderId).ToList();
+            var appProviderItems = (from pItem in app.ProviderItems where pItem.Type == "Captcha" || pItem.Type == "Auth" || pItem.Type == "SMS" select pItem.ProviderId).ToList();
             if (appProviderItems.Any())
             {
                 group.DefaultApplication.Providers = [.. _authCenterDbContext.Provider.Where(p => appProviderItems.Contains(p.Id)).Select(p => new Provider{
@@ -225,6 +249,7 @@ namespace AuthCenter.Controllers
                     AuthEndpoint = p.AuthEndpoint,
                     Scopes = p.Scopes
                 })];
+
             }
 
             return JSONResult.ResponseOk(group);

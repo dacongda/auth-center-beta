@@ -36,6 +36,9 @@ namespace AuthCenter.Models
     {
         [Required]
         public string? Name { get; set; }
+        public string? DisplayName { get; set; }
+        public string? FaviconUrl { get; set; }
+        public string? LogoUrl { get; set; }
         [Required]
         public string? ClientId { get; set; }
         [Required]

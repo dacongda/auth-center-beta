@@ -1,5 +1,6 @@
 ﻿using AuthCenter.Data;
 using AuthCenter.Models;
+using AuthCenter.Providers.SMSProvider;
 using AuthCenter.Utils;
 using AuthCenter.ViewModels;
 using AuthCenter.ViewModels.Request;
@@ -80,6 +81,25 @@ namespace AuthCenter.Controllers
             {
                 var body = provider.Body!.Replace("%code%", "123456");
                 EmailUtils.SendEmail(provider.ConfigureUrl!, provider.Port!.Value, provider.EnableSSL!.Value, provider.ClientId!, provider.ClientSecret!, provider.Destination!, provider.Subject!, body);
+            }
+            catch (Exception ex)
+            {
+                return JSONResult.ResponseError(ex.ToString());
+            }
+
+            return JSONResult.ResponseOk();
+        }
+
+        [HttpPost("testSendSMS", Name = "TestSMSProvider")]
+        public async Task<JSONResult> TestSendSMS(ProviderViewModel provider)
+        {
+            try
+            {
+                var smsProvider = ISMSProvider.GetSMSProvider(provider);
+                if (!await smsProvider.SendSMS(provider.Destination ?? "", ["123456"]))
+                {
+                    return JSONResult.ResponseError("发送失败");
+                }
             }
             catch (Exception ex)
             {

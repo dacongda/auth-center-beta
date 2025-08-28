@@ -7,7 +7,7 @@ namespace AuthCenter.Captcha
         private readonly IDistributedCache _cache = cache;
         private readonly string _providerId = providerId;
 
-        public bool VerifyCode(string captchaId, string code)
+        public bool VerifyCode(string captchaId, string code, string userIp)
         {
             var pId = captchaId.Split(":")[0];
             if (pId != _providerId)

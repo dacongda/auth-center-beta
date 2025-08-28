@@ -93,7 +93,7 @@ namespace AuthCenter.Controllers
 
             var captchaProvider = ICaptchaProvider.GetCaptchaProvider(provider, _cache);
 
-            if (captchaProvider.VerifyCode("", request.CaptchaCode))
+            if (captchaProvider.VerifyCode("", request.CaptchaCode, HttpContext.Connection.RemoteIpAddress?.ToString() ?? ""))
             {
                 return JSONResult.ResponseOk();
             }

@@ -1,5 +1,7 @@
 ﻿using AuthCenter.Data;
 using AuthCenter.Models;
+using AuthCenter.Providers.SMSProvider;
+using AuthCenter.Utils;
 using AuthCenter.ViewModels;
 using AuthCenter.ViewModels.Request;
 using Microsoft.AspNetCore.Authorization;
@@ -45,7 +47,7 @@ namespace AuthCenter.Controllers
 
                 return JSONResult.ResponseOk(new { totpUri = totpUri.ToUri(), secret = base32String, mfaEnableId });
             }
-            else if (request.RequestValue == "Email")
+            else if (request.RequestValue == "Email" || request.RequestValue == "SMS")
             {
                 var mfaEnableId = Guid.NewGuid().ToString("N");
                 var random = new Random();
@@ -59,27 +61,49 @@ namespace AuthCenter.Controllers
                     return JSONResult.ResponseError("认证失效");
                 }
 
-                var mailProviderItem = (from pItem in app.ProviderItems where pItem.Type == "Email" select pItem).FirstOrDefault();
-                if (mailProviderItem is null)
+                var providerItem = (from pItem in app.ProviderItems where pItem.Type == request.RequestValue select pItem).FirstOrDefault();
+                if (providerItem is null)
                 {
-                    return JSONResult.ResponseError("无邮件提供商");
+                    return JSONResult.ResponseError("无相应提供商");
                 }
 
-                var provider = await _authCenterDbContext.Provider.FindAsync(mailProviderItem.ProviderId);
+                var provider = await _authCenterDbContext.Provider.FindAsync(providerItem.ProviderId);
                 if (provider == null)
                 {
-                    return JSONResult.ResponseError("无邮件提供商");
+                    return JSONResult.ResponseError("无相应提供商");
                 }
 
-                var sended = await _cache.GetStringAsync($"verification:code:{curUser.Email}");
-                if (sended == "1")
+                var dest = request.RequestValue == "Email" ? curUser.Email : curUser.Phone;
+                if (dest == null)
+                {
+                    return JSONResult.ResponseError("目的地不存在");
+                }
+
+                var sended = await _cache.GetStringAsync($"verification:code:{dest}");
+                if (!String.IsNullOrEmpty(sended))
                 {
                     return JSONResult.ResponseError("未过冷却期");
                 }
 
-                var body = provider.Body!.Replace("%code%", code);
-                Utils.EmailUtils.SendEmail(provider.ConfigureUrl!, provider.Port!.Value, provider.EnableSSL!.Value, provider.ClientId!, provider.ClientSecret!, curUser.Email!, provider.Subject!, body);
-                await _cache.SetStringAsync($"verification:code:{curUser.Email}", "1", new DistributedCacheEntryOptions
+                if (request.AuthType == "Email")
+                {
+                    var body = provider.Body!.Replace("%code%", code);
+                    if (!EmailUtils.SendEmail(provider.ConfigureUrl!, provider.Port!.Value, provider.EnableSSL!.Value,
+                        provider.ClientId!, provider.ClientSecret!, dest, provider.Subject!, body))
+                    {
+                        return JSONResult.ResponseError("发送失败");
+                    }
+                }
+                else
+                {
+                    var smsProvider = ISMSProvider.GetSMSProvider(provider);
+                    if (!await smsProvider.SendSMS(dest, [code]))
+                    {
+                        return JSONResult.ResponseError("发送失败");
+                    }
+                }
+
+                await _cache.SetStringAsync($"verification:code:{dest}", "1", new DistributedCacheEntryOptions
                 {
                     AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(60),
                 });
@@ -92,7 +116,7 @@ namespace AuthCenter.Controllers
                 return JSONResult.ResponseOk(new { mfaEnableId });
             }
 
-            return JSONResult.ResponseError("并未实现");
+            return JSONResult.ResponseError("未实现");
         }
 
         [HttpPost("enableMfaVerify", Name = "EnableMfaVerify")]
@@ -123,7 +147,7 @@ namespace AuthCenter.Controllers
                 user.TotpSecret = secret;
                 user.EnableTotpMfa = true;
             }
-            else if (request.AuthType == "Email")
+            else if (request.AuthType == "Email" || request.AuthType == "SMS")
             {
                 var res = secret.Split(':');
                 var validTime = Convert.ToInt32(res[1]);
@@ -143,7 +167,11 @@ namespace AuthCenter.Controllers
                     });
                     return JSONResult.ResponseError("认证失效");
                 }
-                user.EnableEmailMfa = true;
+
+                if (request.AuthType == "Email") 
+                { user.EnableEmailMfa = true; }
+                else 
+                { user.EnablePhoneMfa = true; }
             }
 
             var recoveryCode = "";
@@ -187,7 +215,7 @@ namespace AuthCenter.Controllers
             dynamic dynParam = JsonConvert.DeserializeObject(Convert.ToString(data));
             var preferedMfa = (string)dynParam.preferedMfa;
 
-            if (preferedMfa == "Email" && user.EnableEmailMfa || preferedMfa == "Phone" && user.EnablePhoneMfa || preferedMfa == "TOTP" && user.EnableTotpMfa)
+            if (preferedMfa == "Email" && user.EnableEmailMfa || preferedMfa == "SMS" && user.EnablePhoneMfa || preferedMfa == "TOTP" && user.EnableTotpMfa)
             {
                 var effected = await _authCenterDbContext.User.Where(u => u.Id == user.Id).ExecuteUpdateAsync(
                s => s.SetProperty(u => u.PreferredMfaType, preferedMfa));
@@ -227,7 +255,7 @@ namespace AuthCenter.Controllers
             {
                 user.EnableEmailMfa = false;
             }
-            else if (request.AuthType == "Phone")
+            else if (request.AuthType == "SMS")
             {
                 user.EnablePhoneMfa = false;
             }

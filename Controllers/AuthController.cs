@@ -2,6 +2,7 @@
 using AuthCenter.Data;
 using AuthCenter.Models;
 using AuthCenter.Providers.IdProvider;
+using AuthCenter.Providers.SMSProvider;
 using AuthCenter.Utils;
 using AuthCenter.ViewModels;
 using AuthCenter.ViewModels.Request;
@@ -218,7 +219,7 @@ namespace AuthCenter.Controllers
                 var avaliableMfa = new List<string>();
                 if (user.EnableTotpMfa) avaliableMfa.Add("TOTP");
                 if (user.EnableEmailMfa) avaliableMfa.Add("Email");
-                if (user.EnablePhoneMfa) avaliableMfa.Add("Phone");
+                if (user.EnablePhoneMfa) avaliableMfa.Add("SMS");
 
                 CachedUser cachedUser = new()
                 {
@@ -256,9 +257,9 @@ namespace AuthCenter.Controllers
 
                 return totp.VerifyTotp(code, out long timeStampMatched, VerificationWindow.RfcSpecifiedNetworkDelay);
             }
-            else if (mfaType == "Email")
+            else if (mfaType == "Email" || mfaType == "SMS")
             {
-                var secret = _cache.GetString($"verification:email:{mfaVerifyId}");
+                var secret = _cache.GetString($"verification:{mfaType.ToLower()}:{mfaVerifyId}");
                 if (string.IsNullOrEmpty(secret))
                 {
                     return false;
@@ -268,19 +269,22 @@ namespace AuthCenter.Controllers
                 var validTime = Convert.ToInt32(res?[1]);
                 var ans = res?[0];
                 var destination = res?[2];
-                if (user.Email != destination)
+                if (mfaType == "Email" && user.Email != destination)
+                {
+                    return false;
+                } else if (mfaType == "SMS" && user.Phone != destination)
                 {
                     return false;
                 }
                 if (Convert.ToInt32(validTime) == 0)
                 {
-                    _cache.Remove($"verification:email:{mfaVerifyId}");
+                    _cache.Remove($"verification:{mfaType.ToLower()}:{mfaVerifyId}");
                     return false;
                 }
 
                 if (code != ans)
                 {
-                    _cache.SetStringAsync($"verification:email:{mfaVerifyId}", $"{ans}:{validTime - 1}:{destination}", new DistributedCacheEntryOptions
+                    _cache.SetStringAsync($"verification:{mfaType.ToLower()}:{mfaVerifyId}", $"{ans}:{validTime - 1}:{destination}", new DistributedCacheEntryOptions
                     {
                         AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(300),
                     });
@@ -288,11 +292,6 @@ namespace AuthCenter.Controllers
                 }
 
                 return true;
-            }
-            else if (mfaType == "Phone")
-            {
-                var ans = _cache.GetString($"verification:code:{mfaVerifyId}");
-                return code == ans;
             }
             else if (mfaType == "RecoveryCode")
             {
@@ -732,7 +731,6 @@ namespace AuthCenter.Controllers
         [AllowAnonymous]
         public async Task<JSONResult> SendVerificationCode(VerificationCodeRequest request)
         {
-
             // 获取用户
             User? curUser = null;
             if (HttpContext.Items["user"] is not null)
@@ -771,7 +769,7 @@ namespace AuthCenter.Controllers
                     request.Destination = curUser.Email ?? "";
                 }
 
-                if (request.AuthType == "Phone")
+                if (request.AuthType == "SMS")
                 {
                     request.Destination = curUser.Phone ?? "";
                 }
@@ -794,49 +792,61 @@ namespace AuthCenter.Controllers
                 return JSONResult.ResponseError(captchaVerifyRes);
             }
 
+            var mfaEnableId = Guid.NewGuid().ToString("N");
+            var random = new Random();
+            var code = random.Next(100000, 999999).ToString();
+
+            var providerItem = (from pItem in app.ProviderItems where pItem.Type == request.AuthType select pItem).FirstOrDefault();
+            if (providerItem is null)
+            {
+                return JSONResult.ResponseError("无邮件提供商");
+            }
+
+            var provider = await _authCenterDbContext.Provider.FindAsync(providerItem.ProviderId);
+            if (provider == null)
+            {
+                return JSONResult.ResponseError("无邮件提供商");
+            }
+
+            var sended = await _cache.GetStringAsync($"verification:code:{request.Destination}");
+            if (sended == "1")
+            {
+                return JSONResult.ResponseError("未过冷却期");
+            }
 
             if (request.AuthType == "Email")
             {
-                var mfaEnableId = Guid.NewGuid().ToString("N");
-                var random = new Random();
-                var code = random.Next(100000, 999999).ToString();
-
-                var mailProviderItem = (from pItem in app.ProviderItems where pItem.Type == "Email" select pItem).FirstOrDefault();
-                if (mailProviderItem is null)
-                {
-                    return JSONResult.ResponseError("无邮件提供商");
-                }
-
-                var provider = await _authCenterDbContext.Provider.FindAsync(mailProviderItem.ProviderId);
-                if (provider == null)
-                {
-                    return JSONResult.ResponseError("无邮件提供商");
-                }
-
-                var sended = await _cache.GetStringAsync($"verification:code:{request.Destination}");
-                if (sended == "1")
-                {
-                    return JSONResult.ResponseError("未过冷却期");
-                }
-
                 var body = provider.Body!.Replace("%code%", code);
-                EmailUtils.SendEmail(provider.ConfigureUrl!, provider.Port!.Value, provider.EnableSSL!.Value, provider.ClientId!, provider.ClientSecret!, request.Destination, provider.Subject!, body);
-                await _cache.SetStringAsync($"verification:code:{request.Destination}", "1", new DistributedCacheEntryOptions
+                if (!EmailUtils.SendEmail(provider.ConfigureUrl!, provider.Port!.Value, provider.EnableSSL!.Value,
+                    provider.ClientId!, provider.ClientSecret!, request.Destination, provider.Subject!, body))
                 {
-                    AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(60),
-                });
-
-                await _cache.SetStringAsync($"verification:email:{mfaEnableId}", $"{code}:{3}:{request.Destination}", new DistributedCacheEntryOptions
+                    return JSONResult.ResponseError("发送失败");
+                }
+            }
+            else if (request.AuthType == "SMS")
+            {
+                var smsProvider = ISMSProvider.GetSMSProvider(provider);
+                if (!await smsProvider.SendSMS(request.Destination, [code]))
                 {
-                    AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(300),
-                });
-
-                return JSONResult.ResponseOk(new { mfaEnableId });
+                    return JSONResult.ResponseError("发送失败");
+                }
             }
             else
             {
                 return JSONResult.ResponseError("未实现");
             }
+
+            await _cache.SetStringAsync($"verification:code:{request.Destination}", "1", new DistributedCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(60),
+            });
+
+            await _cache.SetStringAsync($"verification:{provider.Type.ToLower()}:{mfaEnableId}", $"{code}:{3}:{request.Destination}", new DistributedCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(300),
+            });
+
+            return JSONResult.ResponseOk(new { mfaEnableId });
         }
 
         [HttpPost("sendForgetPasswordLink", Name = "SendForgetPasswordLink")]
@@ -884,13 +894,6 @@ namespace AuthCenter.Controllers
             {
                 return JSONResult.ResponseError("用户不存在");
             }
-
-            //var url = Request.Scheme + "://" + Request.Host.Value;
-            //var frontEndUrl = _configuration["FrontEndUrl"] ?? "";
-            //if (frontEndUrl == null || frontEndUrl == "")
-            //{
-            //    frontEndUrl = url;
-            //}
 
             var tokenId = Guid.NewGuid().ToString();
             var cert = app.Cert!;
@@ -999,7 +1002,7 @@ namespace AuthCenter.Controllers
             }
 
             var captchaProvider = ICaptchaProvider.GetCaptchaProvider(cProvider, _cache);
-            if (!captchaProvider.VerifyCode(captchaId, captchaCode))
+            if (!captchaProvider.VerifyCode(captchaId, captchaCode, HttpContext.Connection.RemoteIpAddress?.ToString() ?? ""))
             {
                 return "验证码错误";
             }

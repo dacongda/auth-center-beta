@@ -3,6 +3,7 @@ using System;
 using AuthCenter.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AuthCenter.Migrations
 {
     [DbContext(typeof(AuthCenterDbContext))]
-    partial class AuthCenterDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250828160308_2025-8-29-1")]
+    partial class _20258291
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -69,10 +72,6 @@ namespace AuthCenter.Migrations
                         .IsRequired()
                         .HasColumnType("integer[]")
                         .HasColumnName("group_ids");
-
-                    b.Property<string>("LogoUrl")
-                        .HasColumnType("text")
-                        .HasColumnName("logo_url");
 
                     b.Property<string>("Name")
                         .IsRequired()
