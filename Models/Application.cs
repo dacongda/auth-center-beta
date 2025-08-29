@@ -31,6 +31,12 @@ namespace AuthCenter.Models
         public string RedirectUrl { get; set; } = String.Empty;
     }
 
+    public class ApplicationTheme
+    {
+        public string PrimaryColor { get; set; } = "hsl(212, 100%, 45%)";
+        public string Radius { get; set; } = "0.5";
+    }
+
     [Index(nameof(ClientId), IsUnique = true)]
     public class Application : BaseModel
     {
@@ -57,6 +63,7 @@ namespace AuthCenter.Models
         public bool SamlResponseCompress { get; set; }
         public bool SamlEncrypt { get; set; }
         public List<ProviderItem> ProviderItems { get; set; } = [];
+        public ApplicationTheme Theme { get; set; } = new ApplicationTheme();
         public Cert? Cert { get; set; }
         [NotMapped]
         public List<Provider> Providers { get; set; } = [];
@@ -68,9 +75,12 @@ namespace AuthCenter.Models
                 Id,
                 Name,
                 ClientId,
+                FaviconUrl,
+                LogoUrl,
                 Scopes,
                 ProviderItems,
-                Providers
+                Providers,
+                Theme
             };
         }
     }

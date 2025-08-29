@@ -100,6 +100,12 @@ namespace AuthCenter.Data
                     builder.WithOwner().HasForeignKey(f => f.FakeId);
                 });
 
+            modelBuilder.Entity<Application>()
+                .OwnsOne(e => e.Theme, builder =>
+                {
+                    builder.ToJson();
+                });
+
             modelBuilder.Entity<Provider>()
                 .OwnsOne(e => e.UserInfoMap, builder =>
                 {

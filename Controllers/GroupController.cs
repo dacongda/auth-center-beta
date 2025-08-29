@@ -195,7 +195,8 @@ namespace AuthCenter.Controllers
                         DisplayName = app.DisplayName,
                         FaviconUrl = app.FaviconUrl,
                         LogoUrl = app.LogoUrl,
-                        ProviderItems = app.ProviderItems
+                        ProviderItems = app.ProviderItems,
+                        Theme = app.Theme,
                     }).AsNoTracking().FirstOrDefault();
                 group.DefaultApplication = application;
             }
@@ -209,7 +210,8 @@ namespace AuthCenter.Controllers
                         DisplayName = app.DisplayName,
                         FaviconUrl = app.FaviconUrl,
                         LogoUrl = app.LogoUrl,
-                        ProviderItems = app.ProviderItems
+                        ProviderItems = app.ProviderItems,
+                        Theme = app.Theme,
                     }).AsNoTracking().FirstOrDefault();
                 group.DefaultApplication = application;
             }
@@ -223,7 +225,8 @@ namespace AuthCenter.Controllers
                         DisplayName = app.DisplayName,
                         FaviconUrl = app.FaviconUrl,
                         LogoUrl = app.LogoUrl,
-                        ProviderItems = app.ProviderItems
+                        ProviderItems = app.ProviderItems,
+                        Theme = app.Theme,
                     }).AsNoTracking().FirstOrDefault();
                 group.DefaultApplication = application;
             }
