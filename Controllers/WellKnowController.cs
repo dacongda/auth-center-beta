@@ -1,6 +1,7 @@
 ﻿using AuthCenter.Data;
 using AuthCenter.Utils;
 using AuthCenter.ViewModels.Response;
+using DocumentFormat.OpenXml.InkML;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Cryptography.X509Certificates;
@@ -19,13 +20,6 @@ namespace AuthCenter.Controllers
         [HttpGet("openid-configuration", Name = "openid-configuration")]
         public IActionResult OpenidConfiguration()
         {
-            //var url = Request.Scheme + "://" + Request.Host.Value;
-            //var frontEndUrl = _configuration["frontEndUrl"];
-            //if (frontEndUrl == null || frontEndUrl == "")
-            //{
-            //    frontEndUrl = url;
-            //}
-
             var config = new OpenidConfiguration
             {
                 issuer = RequestUrl,

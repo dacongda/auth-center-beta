@@ -212,6 +212,7 @@ namespace AuthCenter.Controllers
         }
 
         [HttpPost("updateSafeInfo", Name = "UpdateSafeInfo")]
+        [Authorize(Roles = "admin,user")]
         public async Task<JSONResult> UpdateSafeInfo(ModifySafeInfoRequest request)
         {
             var userId = await _cache.GetStringAsync($"Auth:Verify:{request.Type}:{request.VerifyCode}");
@@ -311,6 +312,7 @@ namespace AuthCenter.Controllers
         }
 
         [HttpPost("updateAvatar", Name = "UpdateAvatar")]
+        [Authorize(Roles = "admin,user")]
         public async Task<JSONResult> UpdateAvatar()
         {
             var avatarFile = Request.Form.Files.FirstOrDefault();

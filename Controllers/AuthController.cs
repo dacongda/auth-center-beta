@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
@@ -34,6 +35,7 @@ namespace AuthCenter.Controllers
 
         [HttpPost("login", Name = "Login")]
         [Authorize(Roles = "admin,user")]
+        [EnableRateLimiting("login")]
         [AllowAnonymous]
         public async Task<JSONResult> Login(LoginUser loginUser)
         {
@@ -62,7 +64,7 @@ namespace AuthCenter.Controllers
             // check MFA
             if (loginUser.IsMfaVerify)
             {
-                var userObjStr = _cache.GetString($"mfa:verify:{loginUser.CaptchaId}") ?? "";
+                var userObjStr = _cache.GetString($"mfa:verify:{HttpContext.Session.Id}:{loginUser.CaptchaId}") ?? "";
                 if (String.IsNullOrEmpty(userObjStr)) return JSONResult.ResponseError("验证Id错误");
 
                 var userObj = JsonSerializer.Deserialize<CachedUser>(userObjStr);
@@ -106,7 +108,7 @@ namespace AuthCenter.Controllers
                 }
             }
 
-            // normal login process
+            // Verify captcha
             if (loginUser.LoginMethod != "ThirdPart")
             {
                 var captchaVerifyRes = VerifyCaptchaCode(curApplication, loginUser.CaptchaId, loginUser.Code, false);
@@ -163,14 +165,26 @@ namespace AuthCenter.Controllers
                 verifyPassword = true;
             }
 
-            // fetch user
-            var user = _authCenterDbContext.User.Where(u => u.Id == loginUser.Name).Include(p => p.Group).AsNoTracking().FirstOrDefault();
+            if (loginUser.Name == "")
+            {
+                return JSONResult.ResponseOk("用户名为空");
+            }
+
+            // Fetch user
+            var user = _authCenterDbContext.User.Where(
+                    u => u.Id == loginUser.Name || u.Email == loginUser.Name || u.Phone == loginUser.Name
+                ).Include(p => p.Group).AsNoTracking().FirstOrDefault();
             if (user == null || group.TopId == 0 ? user?.GroupId != group.Id : user?.Group?.TopId != group.Id)
             {
                 return JSONResult.ResponseError("无此用户");
             }
 
-            // process bind third part
+            if (user.IsForbidden)
+            {
+                return JSONResult.ResponseError("已被禁用");
+            }
+
+            // Process bind third part
             if (loginUser.Type == "bind")
             {
                 if (userInfo == null)
@@ -191,6 +205,34 @@ namespace AuthCenter.Controllers
                 return JSONResult.ResponseOk("成功");
             }
 
+            // Login forzen check
+            if (user.ForzenLoginUntil is not null)
+            {
+                if (user.ForzenLoginUntil > DateTime.Now)
+                {
+                    var leftTime = (user.ForzenLoginUntil - DateTime.Now);
+                    if (leftTime.Value.Minutes > 0)
+                    {
+                        return JSONResult.ResponseOk($"错误尝试过多，请等待{(user.ForzenLoginUntil - DateTime.Now).Value.Minutes}分钟后重试");
+                    }
+                    else
+                    {
+                        return JSONResult.ResponseOk($"错误尝试过多，请等待{(user.ForzenLoginUntil - DateTime.Now).Value.Seconds}秒后重试");
+                    }
+                }
+
+                // Set user.ForzenLoginUntil to null if not blocked to have a better performance
+                await _authCenterDbContext.User.Where(u => u.Id == user.Id)
+                    .ExecuteUpdateAsync(u => u.SetProperty(u => u.ForzenLoginUntil, (DateTime?)null));
+            }
+
+            // Check user's email or phone verify code
+            if (loginUser.LoginMethod == "Code")
+            {
+                var type = loginUser.Name.Contains("@") ? "Email" : "SMS";
+                verifyPassword = CheckUserCodeVerification(loginUser.Name, type, loginUser.Password, loginUser.VerifyId ?? "");
+            }
+
             // Check user's password
             if (loginUser.LoginMethod == "Password")
             {
@@ -208,9 +250,27 @@ namespace AuthCenter.Controllers
                 verifyPassword = true;
             }
 
+
+            // Login fail time check, if fail too much time in forzen time limit, we will prevent user from logining
+            var authTime = await _cache.GetStringAsync($"Login:FailTry:{user.Id}");
+            var tryTime = 0;
+            if (authTime != null)
+            {
+                tryTime = Convert.ToInt32(authTime);
+            }
             if (!verifyPassword)
             {
-                return JSONResult.ResponseError("密码错误");
+                tryTime += 1;
+                await _cache.SetStringAsync($"Login:FailTry:{user.Id}", tryTime.ToString(), new DistributedCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(curApplication.FailLoginForzenMinute)
+                });
+                if (tryTime > curApplication.FailLoginLimit)
+                {
+                    var frozenUtil = DateTime.Now.AddMinutes(curApplication.FailLoginForzenMinute);
+                    await _authCenterDbContext.User.Where(u => u.Id == user.Id).ExecuteUpdateAsync(u => u.SetProperty(u => u.ForzenLoginUntil, frozenUtil));
+                }
+                return JSONResult.ResponseOk($"登陆错误");
             }
 
             // If user enable MFA, check mfa
@@ -231,7 +291,7 @@ namespace AuthCenter.Controllers
                 };
 
                 var mfaVerifyId = Guid.NewGuid().ToString("N");
-                _cache.SetString($"mfa:verify:{mfaVerifyId}", JsonSerializer.Serialize(cachedUser), new DistributedCacheEntryOptions
+                _cache.SetString($"mfa:verify:{HttpContext.Session.Id}:{mfaVerifyId}", JsonSerializer.Serialize(cachedUser), new DistributedCacheEntryOptions
                 {
                     AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(300),
                 });
@@ -248,6 +308,44 @@ namespace AuthCenter.Controllers
             return HandleUserLogin(loginUser, user, curApplication, loginVia);
         }
 
+        private bool CheckUserCodeVerification(string dest, string type, string code, string verifyId)
+        {
+            var secret = _cache.GetString($"verification:{type.ToLower()}:{HttpContext.Session.Id}:{verifyId}");
+            if (string.IsNullOrEmpty(secret))
+            {
+                return false;
+            }
+
+            var res = secret.Split(':');
+            var validTime = Convert.ToInt32(res?[1]);
+            var ans = res?[0];
+            var destination = res?[2];
+            if (type == "Email" && dest != destination)
+            {
+                return false;
+            }
+            else if (type == "SMS" && dest != destination)
+            {
+                return false;
+            }
+            if (Convert.ToInt32(validTime) >= 3)
+            {
+                _cache.Remove($"verification:{type.ToLower()}:{verifyId}");
+                return false;
+            }
+
+            if (code != ans)
+            {
+                _cache.SetStringAsync($"verification:{type.ToLower()}:{HttpContext.Session.Id}:{verifyId}", $"{ans}:{validTime + 1}:{destination}", new DistributedCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(300),
+                });
+                return false;
+            }
+
+            return true;
+        }
+
         private bool VerifyMfa(User user, string mfaType, string code, string mfaVerifyId)
         {
             if (mfaType == "TOTP")
@@ -259,39 +357,7 @@ namespace AuthCenter.Controllers
             }
             else if (mfaType == "Email" || mfaType == "SMS")
             {
-                var secret = _cache.GetString($"verification:{mfaType.ToLower()}:{mfaVerifyId}");
-                if (string.IsNullOrEmpty(secret))
-                {
-                    return false;
-                }
-
-                var res = secret.Split(':');
-                var validTime = Convert.ToInt32(res?[1]);
-                var ans = res?[0];
-                var destination = res?[2];
-                if (mfaType == "Email" && user.Email != destination)
-                {
-                    return false;
-                } else if (mfaType == "SMS" && user.Phone != destination)
-                {
-                    return false;
-                }
-                if (Convert.ToInt32(validTime) == 0)
-                {
-                    _cache.Remove($"verification:{mfaType.ToLower()}:{mfaVerifyId}");
-                    return false;
-                }
-
-                if (code != ans)
-                {
-                    _cache.SetStringAsync($"verification:{mfaType.ToLower()}:{mfaVerifyId}", $"{ans}:{validTime - 1}:{destination}", new DistributedCacheEntryOptions
-                    {
-                        AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(300),
-                    });
-                    return false;
-                }
-
-                return true;
+                return CheckUserCodeVerification(mfaType == "Email" ? user.Email ?? "" : user.Phone ?? "", mfaType, code, mfaVerifyId);
             }
             else if (mfaType == "RecoveryCode")
             {
@@ -680,6 +746,7 @@ namespace AuthCenter.Controllers
 
         [HttpPost("verifyUser", Name = "VerifyUser")]
         [Authorize(Roles = "admin,user")]
+        [EnableRateLimiting("userVerify")]
         public async Task<JSONResult> VerifyUser(LoginUser loginUser)
         {
             if (loginUser.LoginMethod == "Password")
@@ -841,7 +908,7 @@ namespace AuthCenter.Controllers
                 AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(60),
             });
 
-            await _cache.SetStringAsync($"verification:{provider.Type.ToLower()}:{mfaEnableId}", $"{code}:{3}:{request.Destination}", new DistributedCacheEntryOptions
+            await _cache.SetStringAsync($"verification:{provider.Type.ToLower()}:{HttpContext.Session.Id}:{mfaEnableId}", $"{code}:{0}:{request.Destination}", new DistributedCacheEntryOptions
             {
                 AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(300),
             });
@@ -974,7 +1041,6 @@ namespace AuthCenter.Controllers
 
             return JSONResult.ResponseOk();
         }
-
 
         private string VerifyCaptchaCode(Application app, string captchaId, string captchaCode, bool mustVerify)
         {

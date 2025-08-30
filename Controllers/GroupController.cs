@@ -195,6 +195,7 @@ namespace AuthCenter.Controllers
                         DisplayName = app.DisplayName,
                         FaviconUrl = app.FaviconUrl,
                         LogoUrl = app.LogoUrl,
+                        LogoDarkUrl = app.LogoDarkUrl,
                         ProviderItems = app.ProviderItems,
                         Theme = app.Theme,
                     }).AsNoTracking().FirstOrDefault();
@@ -210,6 +211,7 @@ namespace AuthCenter.Controllers
                         DisplayName = app.DisplayName,
                         FaviconUrl = app.FaviconUrl,
                         LogoUrl = app.LogoUrl,
+                        LogoDarkUrl = app.LogoDarkUrl,
                         ProviderItems = app.ProviderItems,
                         Theme = app.Theme,
                     }).AsNoTracking().FirstOrDefault();
@@ -225,6 +227,7 @@ namespace AuthCenter.Controllers
                         DisplayName = app.DisplayName,
                         FaviconUrl = app.FaviconUrl,
                         LogoUrl = app.LogoUrl,
+                        LogoDarkUrl = app.LogoDarkUrl,
                         ProviderItems = app.ProviderItems,
                         Theme = app.Theme,
                     }).AsNoTracking().FirstOrDefault();

@@ -79,6 +79,14 @@ namespace AuthCenter.Models
         /// 救援代码
         /// </summary>
         public string RecoveryCode { get; set; } = "";
+        /// <summary>
+        /// 登陆错误冻结时间
+        /// </summary>
+        public DateTime? ForzenLoginUntil { get; set; }
+        /// <summary>
+        /// 是否禁用
+        /// </summary>
+        public bool IsForbidden { get; set; } = false;
         public Group? Group { get; set; }
         [NotMapped]
         public int LoginApplication { get; set; } = 0;

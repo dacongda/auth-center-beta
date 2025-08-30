@@ -4,6 +4,7 @@ using AuthCenter.Providers.SMSProvider;
 using AuthCenter.Utils;
 using AuthCenter.ViewModels;
 using AuthCenter.ViewModels.Request;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,6 +12,7 @@ namespace AuthCenter.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize(Roles = "admin")]
     public class ProviderController(AuthCenterDbContext authCenterDbContext) : Controller
     {
         private readonly AuthCenterDbContext _authCenterDbContext = authCenterDbContext;

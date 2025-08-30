@@ -8,6 +8,7 @@
         public required string LoginMethod { get; set; } = "";
         public string? TempId { get; set; }
         public string? State { get; set; }
+        public string? VerifyId { get; set; }
         public string Type { get; set; } = "";
         public string CaptchaId { get; set; } = "";
         public string Code { get; set; } = "";

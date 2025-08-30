@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Caching.StackExchangeRedis;
 using Newtonsoft.Json;
 using OtpNet;
 
@@ -108,7 +109,7 @@ namespace AuthCenter.Controllers
                     AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(60),
                 });
 
-                await _cache.SetStringAsync("mfa:enable:" + mfaEnableId, $"{code}:{3}", new DistributedCacheEntryOptions
+                await _cache.SetStringAsync("mfa:enable:" + mfaEnableId, $"{code}:{0}", new DistributedCacheEntryOptions
                 {
                     AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(300),
                 });
@@ -152,7 +153,7 @@ namespace AuthCenter.Controllers
                 var res = secret.Split(':');
                 var validTime = Convert.ToInt32(res[1]);
                 var code = res[0];
-                if (Convert.ToInt32(validTime) == 0)
+                if (Convert.ToInt32(validTime) >= 3)
                 {
                     await _cache.RemoveAsync($"mfa:enable:{request.CacheOptionId}");
                     return JSONResult.ResponseError("验证码失效");
@@ -161,7 +162,7 @@ namespace AuthCenter.Controllers
 
                 if (code != request.RequestValue)
                 {
-                    await _cache.SetStringAsync($"mfa:enable:{request.CacheOptionId}", $"{code}:{validTime - 1}", new DistributedCacheEntryOptions
+                    await _cache.SetStringAsync($"mfa:enable:{request.CacheOptionId}", $"{code}:{validTime + 1}", new DistributedCacheEntryOptions
                     {
                         AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(300),
                     });

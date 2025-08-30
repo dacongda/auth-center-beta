@@ -45,6 +45,9 @@ namespace AuthCenter.Models
         public string? DisplayName { get; set; }
         public string? FaviconUrl { get; set; }
         public string? LogoUrl { get; set; }
+        public string? LogoDarkUrl { get; set; }
+        public int FailLoginLimit { get; set; } = 5;
+        public int FailLoginForzenMinute { get; set; } = 15;
         [Required]
         public string? ClientId { get; set; }
         [Required]
@@ -77,6 +80,7 @@ namespace AuthCenter.Models
                 ClientId,
                 FaviconUrl,
                 LogoUrl,
+                LogoDarkUrl,
                 Scopes,
                 ProviderItems,
                 Providers,

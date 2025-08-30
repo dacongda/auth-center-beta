@@ -3,6 +3,7 @@ using System;
 using AuthCenter.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AuthCenter.Migrations
 {
     [DbContext(typeof(AuthCenterDbContext))]
-    partial class AuthCenterDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250830094052_2025-8-30-1")]
+    partial class _20258301
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -60,14 +63,6 @@ namespace AuthCenter.Migrations
                     b.Property<int>("ExpiredSecond")
                         .HasColumnType("integer")
                         .HasColumnName("expired_second");
-
-                    b.Property<int>("FailLoginForzenMinute")
-                        .HasColumnType("integer")
-                        .HasColumnName("fail_login_forzen_minute");
-
-                    b.Property<int>("FailLoginLimit")
-                        .HasColumnType("integer")
-                        .HasColumnName("fail_login_limit");
 
                     b.Property<string>("FaviconUrl")
                         .HasColumnType("text")
@@ -454,10 +449,6 @@ namespace AuthCenter.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("enable_totp_mfa");
 
-                    b.Property<DateTime?>("ForzenLoginUntil")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("forzen_login_until");
-
                     b.Property<int?>("GroupId")
                         .HasColumnType("integer")
                         .HasColumnName("group_id");
@@ -465,10 +456,6 @@ namespace AuthCenter.Migrations
                     b.Property<bool>("IsAdmin")
                         .HasColumnType("boolean")
                         .HasColumnName("is_admin");
-
-                    b.Property<bool>("IsForbidden")
-                        .HasColumnType("boolean")
-                        .HasColumnName("is_forbidden");
 
                     b.Property<string>("Name")
                         .IsRequired()

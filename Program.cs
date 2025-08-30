@@ -7,6 +7,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using StackExchange.Redis;
 using System.Diagnostics;
+using System.Linq;
+using System.Threading.RateLimiting;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<AuthCenterDbContext>(options =>
@@ -42,6 +44,17 @@ builder.Services.AddControllers().ConfigureApiBehaviorOptions(options =>
     options.JsonSerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
 });
 
+var sessionName = $"{builder.Configuration["ServerName"]?.Replace(" ", "")}.Session";
+
+builder.Services.AddSession(options =>
+{
+    //options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    //options.Cookie.SameSite = SameSiteMode.None;
+    options.Cookie.HttpOnly = true;
+    options.Cookie.Name = sessionName;
+    options.IdleTimeout = TimeSpan.FromMinutes(60);
+    options.Cookie.IsEssential = true;
+});
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
@@ -58,6 +71,46 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.KnownProxies.Clear();
 });
 
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = 429;
+    options.AddPolicy("login", httpContext =>
+    {
+        var sessionId = httpContext.Session.Id;
+
+        if (sessionId != null)
+        {
+            return RateLimitPartition.GetFixedWindowLimiter(sessionId,
+            partition => new FixedWindowRateLimiterOptions
+            {
+                AutoReplenishment = true,
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1)
+            });
+        }
+
+        return RateLimitPartition.GetNoLimiter("");
+    });
+
+    options.AddPolicy("userVerify", httpContext =>
+    {
+        var userId = httpContext.User.Identity?.Name;
+
+        if (userId != null)
+        {
+            return RateLimitPartition.GetFixedWindowLimiter(userId,
+            partition => new FixedWindowRateLimiterOptions
+            {
+                AutoReplenishment = true,
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(5)
+            });
+        }
+
+        return RateLimitPartition.GetNoLimiter("");
+    });
+});
+
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
@@ -66,7 +119,6 @@ using (var scope = app.Services.CreateScope())
     db.Database.Migrate();
 }
 
-
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
@@ -74,8 +126,31 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+var currentDir = Directory.GetCurrentDirectory();
+var baseDir = Path.Combine(currentDir, builder.Configuration["baseDir"] ?? "./upload");
+
+app.UseForwardedHeaders();
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(baseDir),
+    RequestPath = "/api/static"
+});
+app.UseHttpsRedirection();
+
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.UseSession();
+
 app.Use(async (context, next) =>
 {
+    // Active session string
+    if (!context.Request.Cookies.TryGetValue(sessionName, out _))
+    {
+        context.Session.SetString("-", "");
+    }
+    
     var profiler = new Stopwatch();
     profiler.Start();
     await next();
@@ -87,21 +162,7 @@ app.Use(async (context, next) =>
                             context.TraceIdentifier, context.Request.Method, context.Request.Path, profiler.ElapsedMilliseconds, context.Response.StatusCode);
 });
 
-var currentDir = Directory.GetCurrentDirectory();
-var baseDir = Path.Combine(currentDir, builder.Configuration.GetConnectionString("baseDir") ?? "./upload");
-
-app.UseForwardedHeaders();
-
-app.UseStaticFiles(new StaticFileOptions
-{
-    FileProvider = new PhysicalFileProvider(baseDir),
-    RequestPath = "/api/static"
-});
-
-app.UseHttpsRedirection();
-
-app.UseAuthentication();
-app.UseAuthorization();
+app.UseRateLimiter();
 
 app.MapControllers();
 app.UseExceptionHandler(o => { });

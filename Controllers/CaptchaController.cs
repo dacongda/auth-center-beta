@@ -75,30 +75,5 @@ namespace AuthCenter.Controllers
 
             return JSONResult.ResponseError("Unsupported subtype");
         }
-
-        [HttpPost("verify-captcha", Name = "Verify captcha")]
-        public JSONResult VertifyCaptcha(CaptchaRequest request)
-        {
-            var provider = (from p in _authCenterDbContext.Provider 
-                            where p.Id == request.ProviderId select p).FirstOrDefault();
-
-            if (provider == null || provider.Type != "Captcha") {
-                return JSONResult.ResponseError("提供商不存在");
-            }
-
-            if (provider.SubType == "Default")
-            {
-                return JSONResult.ResponseError("不支持的类型");
-            }
-
-            var captchaProvider = ICaptchaProvider.GetCaptchaProvider(provider, _cache);
-
-            if (captchaProvider.VerifyCode("", request.CaptchaCode, HttpContext.Connection.RemoteIpAddress?.ToString() ?? ""))
-            {
-                return JSONResult.ResponseOk();
-            }
-
-            return JSONResult.ResponseError("验证失败");
-        }
     }
 }

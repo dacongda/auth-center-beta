@@ -2,6 +2,7 @@
 using AuthCenter.Models;
 using AuthCenter.Utils;
 using AuthCenter.ViewModels;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 namespace AuthCenter.Controllers
@@ -9,6 +10,7 @@ namespace AuthCenter.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize(Roles = "admin")]
     public class CertController(AuthCenterDbContext authCenterDbContext, IConfiguration configuration) : Controller
     {
         private readonly AuthCenterDbContext _authCenterDbContext = authCenterDbContext;
