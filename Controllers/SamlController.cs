@@ -43,13 +43,6 @@ namespace AuthCenter.Controllers
         [HttpPost("login-saml/{clientId}", Name = "LoginSAML Redirect")]
         public async Task<IActionResult> SAMLLogin(string clientId)
         {
-            var url = Request.Scheme + "://" + Request.Host.Value;
-            var frontEndUrl = _configuration["FrontEndUrl"] ?? "";
-            if (frontEndUrl == null || frontEndUrl == "")
-            {
-                frontEndUrl = url;
-            }
-
             var samlRequest = Request.Form["SAMLRequest"];
             var relayState = Request.Form["RelayState"];
 
@@ -59,7 +52,7 @@ namespace AuthCenter.Controllers
                 AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(300)
             });
 
-            return Redirect($"{frontEndUrl}/auth/login-saml/{clientId}?samlId={samlId}");
+            return Redirect($"{RequestUrl}/auth/login-saml/{clientId}?samlId={samlId}");
         }
 
         [HttpGet("getSamlRequest", Name = "Get saml request")]

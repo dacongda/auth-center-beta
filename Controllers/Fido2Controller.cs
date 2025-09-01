@@ -24,7 +24,7 @@ namespace AuthCenter.Controllers
         private readonly IConfiguration _configuration = configuration;
 
         private string RequestUrl => ControllerUtils.GetFrontUrl(_configuration, Request);
-        private readonly string serverDomain = new Uri(configuration["FrontEndUrl"] ?? "").Host;
+        private readonly string serverDomain = new Uri(configuration.GetSection("ServerStrings")["FrontEndUrl"] ?? "").Host;
 
         [HttpGet("getUserCredentials", Name = "GetUserCedentials")]
         public async Task<JSONResult> GetUserCredentials()

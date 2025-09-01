@@ -3,6 +3,6 @@
     public class ControllerUtils
     {
         public static string GetFrontUrl(IConfiguration configuration, HttpRequest request)
-            => configuration?["FrontEndUrl"] ?? request.Scheme + "://" + request.Host.Value;
+            => configuration.GetSection("ServerStrings")["FrontEndUrl"] ?? request.Scheme + "://" + request.Host.Value;
     }
 }

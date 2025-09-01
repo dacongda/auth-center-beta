@@ -69,7 +69,7 @@ namespace AuthCenter.Controllers
         [HttpPost(Name = "AddCert")]
         public JSONResult Add(Cert postCert)
         {
-            string defaultDN = _configuration["DefaultDN"] ?? "";
+            string defaultDN = _configuration.GetSection("ServerStrings")["DefaultDN"] ?? "";
             var cert = CertUtil.CreateNewCert(postCert.Name, postCert.CryptoAlgorithm, postCert.CryptoSHASize, postCert.BitSize, postCert.Type, postCert.DistinguishedName ?? defaultDN, postCert.NotAfter);
 
             try

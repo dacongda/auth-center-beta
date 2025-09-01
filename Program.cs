@@ -45,7 +45,7 @@ builder.Services.AddControllers().ConfigureApiBehaviorOptions(options =>
     options.JsonSerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
 });
 
-var sessionName = $"{builder.Configuration["ServerName"]?.Replace(" ", "")}.Session";
+var sessionName = $"{builder.Configuration.GetSection("ServerStrings")["ServerName"]?.Replace(" ", "")}.Session";
 
 builder.Services.AddSession(options =>
 {
