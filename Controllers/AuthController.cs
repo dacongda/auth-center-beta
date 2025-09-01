@@ -8,6 +8,7 @@ using AuthCenter.ViewModels;
 using AuthCenter.ViewModels.Request;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -15,13 +16,11 @@ using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.IdentityModel.Tokens;
-using NPOI.SS.Formula.Functions;
 using OtpNet;
 using System.ComponentModel.DataAnnotations;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace AuthCenter.Controllers
 {
@@ -84,6 +83,11 @@ namespace AuthCenter.Controllers
                 dbUser.LoginApplication = userObj.LoginApplication;
                 if (!VerifyMfa(dbUser, loginUser.LoginMethod, loginUser.Code, loginUser.Password))
                     return JSONResult.ResponseError("MFA认证失败");
+
+                if (loginUser.TrustMfa)
+                {
+                    HttpContext.Session.Set($"mfa:trust:{userObj.Id}", BitConverter.GetBytes(DateTimeOffset.UtcNow.AddDays(7).Ticks));
+                }
 
                 curApplication = _authCenterDbContext.Application.Where(app => app.Id == userObj.LoginApplication).Include(app => app.Cert).FirstOrDefault();
                 if (curApplication is null)
@@ -278,6 +282,18 @@ namespace AuthCenter.Controllers
             // If user enable MFA, check mfa
             if ((user.EnableEmailMfa || user.EnablePhoneMfa || user.EnableTotpMfa) && loginUser.LoginMethod != "Passkey")
             {
+                var trustMfaUntilBytes = HttpContext.Session.Get($"mfa:trust:{user.Id}");
+                if (trustMfaUntilBytes is not null)
+                {
+                    var trustUntil = BitConverter.ToInt64(trustMfaUntilBytes);
+                    if  (DateTimeOffset.UtcNow.Ticks < trustUntil)
+                    {
+                        return HandleUserLogin(loginUser, user, curApplication, loginVia);
+                    }
+
+                    HttpContext.Session.Remove($"mfa:trust:{user.Id}");
+                }
+
                 var avaliableMfa = new List<string>();
                 if (user.EnableTotpMfa) avaliableMfa.Add("TOTP");
                 if (user.EnableEmailMfa) avaliableMfa.Add("Email");

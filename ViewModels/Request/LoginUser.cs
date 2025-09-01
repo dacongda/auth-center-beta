@@ -14,6 +14,7 @@
         public string Code { get; set; } = "";
         public bool IsMfaVerify { get; set; } = false;
         public bool RememberMe { get; set; } = false;
+        public bool TrustMfa { get; set; } = false;
     }
     public class LoginResult
     {

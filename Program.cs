@@ -51,8 +51,8 @@ builder.Services.AddSession(options =>
 {
     options.Cookie.HttpOnly = true;
     options.Cookie.Name = sessionName;
-    options.IdleTimeout = TimeSpan.FromMinutes(120);
-    options.Cookie.MaxAge = TimeSpan.FromMinutes(120);
+    options.IdleTimeout = TimeSpan.FromDays(30);
+    options.Cookie.MaxAge = TimeSpan.FromDays(30);
     options.Cookie.IsEssential = true;
 });
 

@@ -46,6 +46,7 @@ namespace AuthCenter.Models
         public string? FaviconUrl { get; set; }
         public string? LogoUrl { get; set; }
         public string? LogoDarkUrl { get; set; }
+        public bool EnableAuthorizeConfirm { get; set; } = false;
         public int FailLoginLimit { get; set; } = 5;
         public int FailLoginForzenMinute { get; set; } = 15;
         [Required]
@@ -79,6 +80,7 @@ namespace AuthCenter.Models
                 Name,
                 ClientId,
                 FaviconUrl,
+                EnableAuthorizeConfirm,
                 LogoUrl,
                 LogoDarkUrl,
                 Scopes,
