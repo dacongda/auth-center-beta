@@ -24,6 +24,7 @@ namespace AuthCenter.Controllers
             {
                 var providerPageList = _authCenterDbContext.Provider
                     .Select(p => new { p.Id, p.Name, p.Type, p.SubType })
+                    .OrderBy(e => e.Id)
                     .Skip((int)((page - 1) * pageSize))
                     .Take((int)pageSize).ToList();
                 var count = _authCenterDbContext.Provider.Count();

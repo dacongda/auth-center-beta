@@ -21,11 +21,6 @@ namespace AuthCenter.Controllers
         public IActionResult Metadata(string clientId)
         {
             var url = Request.Scheme + "://" + Request.Host.Value;
-            //var frontEndUrl = _configuration["FrontEndUrl"] ?? "";
-            //if (frontEndUrl == null || frontEndUrl == "")
-            //{
-            //    frontEndUrl = url;
-            //}
 
             var rawClientId = clientId.Split("-")[0];
             var application = _authCenterDbContext.Application.Where(app => app.ClientId == rawClientId).Include(app => app.Cert).FirstOrDefault();

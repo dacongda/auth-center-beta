@@ -21,7 +21,8 @@ namespace AuthCenter.Controllers
         {
             if (page != null && pageSize != null)
             {
-                var certList = _authCenterDbContext.Cert.Select(cert => new { cert.Id, cert.Name, cert.Type, cert.CryptoAlgorithm, cert.BitSize, cert.CryptoSHASize }).Skip(((int)page - 1) * (int)pageSize).Take((int)pageSize).ToList();
+                var certList = _authCenterDbContext.Cert.Select(cert => new { cert.Id, cert.Name, cert.Type, cert.CryptoAlgorithm, cert.BitSize, cert.CryptoSHASize })
+                    .OrderBy(e => e.Id).Skip(((int)page - 1) * (int)pageSize).Take((int)pageSize).ToList();
                 var count = _authCenterDbContext.Cert.Count();
                 return JSONResult.ResponseList(certList, count);
             }

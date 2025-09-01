@@ -15,11 +15,13 @@ using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.IdentityModel.Tokens;
+using NPOI.SS.Formula.Functions;
 using OtpNet;
 using System.ComponentModel.DataAnnotations;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace AuthCenter.Controllers
 {
@@ -389,11 +391,11 @@ namespace AuthCenter.Controllers
             };
 
             var responseType = Request.Query["response_type"];
+            string accessToken = "";
 
             // Login to manage system
-            if (loginUser.Type == "login")
-            {
-                var tokenString = user.Id.ToString() + ":" + Guid.NewGuid().ToString();
+            if (string.IsNullOrEmpty(User.Identity?.Name ?? "")) {
+                accessToken = user.Id.ToString() + ":" + Guid.NewGuid().ToString();
 
                 CachedUser cachedUser = new CachedUser
                 {
@@ -402,21 +404,24 @@ namespace AuthCenter.Controllers
                     LoginVia = loginVia,
                 };
 
-                _cache.SetString($"Login:Auth:{tokenString}", JsonSerializer.Serialize(cachedUser), new DistributedCacheEntryOptions
+                _cache.SetString($"Login:Auth:{accessToken}", JsonSerializer.Serialize(cachedUser), new DistributedCacheEntryOptions
                 {
                     AbsoluteExpirationRelativeToNow = TimeSpan.FromDays(7),
                 });
 
-                userSession.SessionId = tokenString;
-                userSession.LoginToken = tokenString;
+                userSession.SessionId = accessToken;
+                userSession.LoginToken = accessToken;
 
                 _authCenterDbContext.UserSessions.Add(userSession);
-                _authCenterDbContext.SaveChangesAsync();
+                _authCenterDbContext.SaveChanges();
+            }
 
+            if (loginUser.Type == "login")
+            {
                 return JSONResult.ResponseOk(
                     new LoginResult()
                     {
-                        AccessToken = tokenString
+                        AccessToken = accessToken
                     });
             }
 
@@ -505,7 +510,12 @@ namespace AuthCenter.Controllers
                 userSession.LoginToken = "";
 
                 _authCenterDbContext.UserSessions.Add(userSession);
-                _authCenterDbContext.SaveChangesAsync();
+                _authCenterDbContext.SaveChanges();
+
+                if (!string.IsNullOrEmpty(accessToken))
+                {
+                    dict.Add("accessToken", accessToken);
+                }
 
                 return JSONResult.ResponseOk(dict);
             }
@@ -563,7 +573,7 @@ namespace AuthCenter.Controllers
                 userSession.LoginToken = "";
 
                 _authCenterDbContext.UserSessions.Add(userSession);
-                _authCenterDbContext.SaveChangesAsync();
+                _authCenterDbContext.SaveChanges();
 
                 if (samlRequest.ProtocolBinding != "")
                 {
@@ -572,15 +582,39 @@ namespace AuthCenter.Controllers
 
                 return JSONResult.ResponseOk(new
                 {
+                    accessToken,
                     samlResponse,
                     relayState = rawRelayState,
                     samlBindingType = samlBinding,
                     redirectUrl = samlRequest.AssertionConsumerServiceURL
                 });
             }
+            else if (loginUser.Type == "cas")
+            {
+                var service = Request.Query["service"];
+                if (application.RedirectUrls?.Where(allowedUrl => allowedUrl == service).Any() != true)
+                {
+                    return JSONResult.ResponseError("目标地址不在许可地址内");
+                }
+
+                var st = $"ST-{Guid.NewGuid().ToString("N").ToUpper()}";
+                var pgtiou = $"PGTIOU-{Guid.NewGuid().ToString("N").ToUpper()}";
+                var casResp = CasUtils.GenerateServiceResponse(user, pgtiou, service, loginUser.RememberMe);
+
+                var storeVal = new CasSTStore(st, service.ToString(), casResp);
+                var storeValJson = JsonSerializer.Serialize(storeVal);
+
+                _cache.SetString($"Login:CAS:ST:{st}", storeValJson, new DistributedCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(application.AccessExpiredSecond)
+                });
+
+                return JSONResult.ResponseOk(new { st, accessToken });
+            }
 
             return JSONResult.ResponseError("登陆类型错误");
         }
+        
         [HttpPost("register", Name = "Register user")]
         public async Task<JSONResult> Register(RegisterUser registerUser)
         {
@@ -614,6 +648,7 @@ namespace AuthCenter.Controllers
                 return JSONResult.ResponseError(captchaVerifyRes);
             }
 
+            // Check if user exist
             if (await _authCenterDbContext.User.Where(u => u.Id == registerUser.Id || (u.Email != null && u.Email == registerUser.Email) || (u.Phone != null && u.Phone == registerUser.Phone)).AnyAsync())
             {
                 return JSONResult.ResponseError("已有用户用此ID注册或邮箱/手机冲突");
@@ -621,6 +656,7 @@ namespace AuthCenter.Controllers
 
             User user = new User { Id = registerUser.Id, Name = registerUser.Name, Email = registerUser.Email, Phone = registerUser.Phone, GroupId = group.Id };
 
+            // Check email code if email provider exist and enable Register check
             var emailProviderItem = curApplication.ProviderItems.Where(pItem => pItem.Type == "Email").FirstOrDefault();
             if (emailProviderItem != null && emailProviderItem.Rule.Contains("Register"))
             {
@@ -632,6 +668,7 @@ namespace AuthCenter.Controllers
                 user.EmailVerified = true;
             }
 
+            // Check if phone code if phone provider exist and enable Register check
             var phoneProviderItem = curApplication.ProviderItems.Where(pItem => pItem.Type == "Phone").FirstOrDefault();
             if (phoneProviderItem != null && phoneProviderItem.Rule.Contains("Register"))
             {
@@ -651,11 +688,19 @@ namespace AuthCenter.Controllers
 
             return JSONResult.ResponseOk();
         }
+
         [HttpPost("logout", Name = "Logout")]
         [Authorize(Roles = "admin,user")]
+        [AllowAnonymous]
         public async Task<IActionResult> Logout()
         {
             var token = Request.Headers.Authorization.ToString();
+
+            if (string.IsNullOrEmpty(token))
+            {
+                return Json(JSONResult.ResponseError("注销失败"));
+            }
+            
             if (token.Split(" ").Length == 2)
             {
                 Response.Headers.CacheControl = "no-store";

@@ -48,7 +48,7 @@ namespace AuthCenter.Controllers
                 query = query.Where(u => groupIds.Contains(u.GroupId ?? 0));
             }
             var count = countQuery.Count();
-            var list = query.Skip((page - 1) * pageSize)
+            var list = query.OrderBy(e => e.Id).Skip((page - 1) * pageSize)
                 .Take(pageSize).ToList();
             return JSONResult.ResponseList(list, count);
         }

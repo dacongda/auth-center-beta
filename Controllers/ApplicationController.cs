@@ -15,7 +15,8 @@ namespace AuthCenter.Controllers
         [HttpGet("list", Name = "ListApplication")]
         public JSONResult List(int page, int pageSize)
         {
-            var appList = _authCenterDbContext.Application.Select(app => new { app.Id, app.Name, app.ClientId, app.DisplayName }).Skip((page - 1) * pageSize).Take(pageSize).ToList();
+            var appList = _authCenterDbContext.Application.Select(app => new { app.Id, app.Name, app.ClientId, app.DisplayName })
+                .OrderBy(e => e.Id).Skip((page - 1) * pageSize).Take(pageSize).ToList();
             var count = _authCenterDbContext.Application.Count();
             return JSONResult.ResponseList(appList, count);
         }

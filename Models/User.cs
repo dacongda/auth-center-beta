@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Xml.Serialization;
 
 namespace AuthCenter.Models
 {
@@ -54,46 +55,76 @@ namespace AuthCenter.Models
         /// <summary>
         /// 密码
         /// </summary>
+        [XmlIgnore]
         public string? Password { get; set; }
         /// <summary>
         /// 偏好MFA类型
         /// </summary>
+        [XmlIgnore]
         public string PreferredMfaType { get; set; } = "";
         /// <summary>
         /// Totp 密钥
         /// </summary>
+        [XmlIgnore]
         public string TotpSecret { get; set; } = "";
         /// <summary>
         /// 是否启用邮件MFA
         /// </summary>
+        [XmlIgnore]
         public bool EnableEmailMfa { get; set; } = false;
         /// <summary>
         /// 是否启用手机MFA
         /// </summary>
+        /// [XmlIgnore]
         public bool EnablePhoneMfa { get; set; } = false;
         /// <summary>
         /// 是否启用TotpMfa
         /// </summary>
+        [XmlIgnore]
         public bool EnableTotpMfa { get; set; } = false;
         /// <summary>
         /// 救援代码
         /// </summary>
+        [XmlIgnore]
         public string RecoveryCode { get; set; } = "";
         /// <summary>
         /// 登陆错误冻结时间
         /// </summary>
+        /// [XmlIgnore]
         public DateTime? ForzenLoginUntil { get; set; }
         /// <summary>
         /// 是否禁用
         /// </summary>
         public bool IsForbidden { get; set; } = false;
+        [XmlIgnore]
         public Group? Group { get; set; }
         [NotMapped]
+        [XmlIgnore]
+
         public int LoginApplication { get; set; } = 0;
 
         public bool VerifyPassword(string password)
         {
             return BCrypt.Net.BCrypt.Verify(password, Password);
+        }
+
+        public User GetMaskedUser()
+        {
+            return new User
+            {
+                Id = Id,
+                Name = Name,
+                Avatar = Avatar,
+                Roles = Roles,
+                IsAdmin = IsAdmin,
+                Email = Email,
+                EmailVerified = EmailVerified,
+                Phone = Phone,
+                PhoneVerified = PhoneVerified,
+                IsForbidden = IsForbidden,
+                CreatedAt = CreatedAt,
+                UpdatedAt = UpdatedAt,
+            };
         }
     }
 }

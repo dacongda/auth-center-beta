@@ -1,5 +1,6 @@
 using AuthCenter.Data;
 using AuthCenter.Handler;
+using AuthCenter.HostServices;
 using AuthCenter.ViewModels;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
@@ -48,11 +49,10 @@ var sessionName = $"{builder.Configuration["ServerName"]?.Replace(" ", "")}.Sess
 
 builder.Services.AddSession(options =>
 {
-    //options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-    //options.Cookie.SameSite = SameSiteMode.None;
     options.Cookie.HttpOnly = true;
     options.Cookie.Name = sessionName;
-    options.IdleTimeout = TimeSpan.FromMinutes(60);
+    options.IdleTimeout = TimeSpan.FromMinutes(120);
+    options.Cookie.MaxAge = TimeSpan.FromMinutes(120);
     options.Cookie.IsEssential = true;
 });
 
@@ -111,6 +111,8 @@ builder.Services.AddRateLimiter(options =>
     });
 });
 
+builder.Services.AddHostedService<CleanExpiredTokenService>();
+
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
@@ -145,19 +147,19 @@ app.UseSession();
 
 app.Use(async (context, next) =>
 {
-    // Active session string
+    // Session Id will always change until first value is set
     if (!context.Request.Cookies.TryGetValue(sessionName, out _))
     {
         context.Session.SetString("-", "");
     }
-    
+    var logger = context.RequestServices.GetService<ILoggerFactory>()?
+        .CreateLogger("PerformanceLog");
+
     var profiler = new Stopwatch();
     profiler.Start();
     await next();
     profiler.Stop();
 
-    var logger = context.RequestServices.GetService<ILoggerFactory>()?
-        .CreateLogger("PerformanceLog");
     logger?.LogInformation("TraceId:{TraceId}, RequestMethod:{RequestMethod}, RequestPath:{RequestPath}, ElapsedMilliseconds:{ElapsedMilliseconds}, Response StatusCode: {StatusCode}",
                             context.TraceIdentifier, context.Request.Method, context.Request.Path, profiler.ElapsedMilliseconds, context.Response.StatusCode);
 });

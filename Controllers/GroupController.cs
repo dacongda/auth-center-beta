@@ -81,6 +81,7 @@ namespace AuthCenter.Controllers
                 .Count();
             var parentGroups = _authCenterDbContext.Group
                 .Where(group => group.ParentId == 0)
+                .OrderBy(group => group.Id)
                 .Skip((page - 1) * parentCount).
                 Take(pageSize)
                 .ToList();

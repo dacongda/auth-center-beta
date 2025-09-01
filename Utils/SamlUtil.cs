@@ -113,7 +113,8 @@ namespace AuthCenter.Utils
 
             return encodedRes;
         }
-        public static string GetSAMLResponse(User user, Application application,
+
+        public static XmlDocument GetRawSAMLResponse(User user, Application application,
             string url, string frontEndUrl, string redirectUrl,
             string requestIssuer, string id, bool isEncrypted, string? requestId)
         {
@@ -299,6 +300,15 @@ namespace AuthCenter.Utils
             XmlElement? xeIssuer = doc!.FirstChild!.SelectSingleNode("saml:Issuer", ns) as XmlElement;
             doc!.FirstChild!.InsertAfter(xmlDigitalSignature, xeIssuer);
             #endregion
+
+            return doc;
+        }
+
+        public static string GetSAMLResponse(User user, Application application,
+            string url, string frontEndUrl, string redirectUrl,
+            string requestIssuer, string id, bool isEncrypted, string? requestId)
+        {
+            var doc = GetRawSAMLResponse(user, application, url, frontEndUrl, redirectUrl, requestIssuer, id, isEncrypted, requestId);
 
             #region Compress Response
             var docBytes = Encoding.UTF8.GetBytes(doc.InnerXml);
