@@ -1,6 +1,6 @@
 <div align="center">
   <a>
-    <img alt="UI Logo" width="215" src="./ui/apps/web-naive/public/AuthCenterLogo.svg">
+    <img alt="UI Logo" width="215" src="https://github.com/dacongda/auth-center-beta-ui/blob/main/apps/web-naive/public/AuthCenterLogo.svg">
   </a>
   <br>
   <h1>Auth center</h1>
