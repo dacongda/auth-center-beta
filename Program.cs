@@ -138,7 +138,10 @@ app.UseStaticFiles(new StaticFileOptions
     FileProvider = new PhysicalFileProvider(baseDir),
     RequestPath = "/api/static"
 });
+
 app.UseHttpsRedirection();
+app.UseStaticFiles();
+app.UseDefaultFiles();
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -167,6 +170,7 @@ app.Use(async (context, next) =>
 app.UseRateLimiter();
 
 app.MapControllers();
+app.MapFallbackToFile("index.html");
 app.UseExceptionHandler(o => { });
 
 app.Run();

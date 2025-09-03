@@ -51,6 +51,7 @@
 
   <ItemGroup>
     <Folder Include="upload\avatar\" />
+    <Folder Include="wwwroot\" />
   </ItemGroup>
 
 </Project>

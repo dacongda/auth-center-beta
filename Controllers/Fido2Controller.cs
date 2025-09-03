@@ -16,15 +16,31 @@ namespace AuthCenter.Controllers
     [ApiController]
     [Route("api/[controller]")]
     [Authorize(Roles = "admin,user")]
-    public class Fido2Controller(AuthCenterDbContext authCenterDbContext, IDistributedCache cache, IConfiguration configuration, ILogger<Fido2Controller> logger) : Controller
+    public class Fido2Controller : Controller
     {
-        private readonly AuthCenterDbContext _authCenterDbContext = authCenterDbContext;
-        private readonly IDistributedCache _cache = cache;
-        private readonly ILogger<Fido2Controller> _logger = logger;
-        private readonly IConfiguration _configuration = configuration;
+        private readonly AuthCenterDbContext _authCenterDbContext;
+        private readonly IDistributedCache _cache;
+        private readonly ILogger<Fido2Controller> _logger;
+        private readonly IConfiguration _configuration;
+        private readonly Fido2Configuration _fido2Config;
 
-        private string RequestUrl => ControllerUtils.GetFrontUrl(_configuration, Request);
-        private readonly string serverDomain = new Uri(configuration.GetSection("ServerStrings")["FrontEndUrl"] ?? "").Host;
+        public Fido2Controller(AuthCenterDbContext authCenterDbContext, IDistributedCache cache, IConfiguration configuration, ILogger<Fido2Controller> logger)
+        {
+            _authCenterDbContext = authCenterDbContext;
+            _cache = cache;
+            _logger = logger;
+            _configuration = configuration;
+
+            var requestUrl = ControllerUtils.GetFrontUrl(configuration, Request);
+            var origins = new HashSet<string>() { "https://localhost", requestUrl };
+            _fido2Config = new Fido2Configuration
+            {
+                ServerDomain = new Uri(requestUrl).Host,
+                ServerName = _configuration.GetSection("ServerStrings")["ServerName"] ?? "AuthCenter",
+                Origins = origins,
+                TimestampDriftTolerance = 300000,
+            };
+        }
 
         [HttpGet("getUserCredentials", Name = "GetUserCedentials")]
         public async Task<JSONResult> GetUserCredentials()
@@ -40,17 +56,7 @@ namespace AuthCenter.Controllers
 
             var existingKeys = _authCenterDbContext.WebAuthnCredential.Where(c => c.UserId == User.Identity!.Name).ToList();
 
-            var origins = new HashSet<string>() { "https://localhost", RequestUrl };
-
-            var fido2Config = new Fido2Configuration
-            {
-                ServerDomain = serverDomain,
-                ServerName = "AuthCenter",
-                Origins = origins,
-                TimestampDriftTolerance = 300000,
-            };
-
-            var fido2 = new Fido2(fido2Config);
+            var fido2 = new Fido2(_fido2Config);
 
             var authenticatiorSelection = new AuthenticatorSelection
             {
@@ -109,16 +115,7 @@ namespace AuthCenter.Controllers
                 return JSONResult.ResponseError("无此请求");
             }
 
-            var origins = new HashSet<string>() { "https://localhost", "http://localhost:5888", RequestUrl };
-            var fido2Config = new Fido2Configuration
-            {
-                ServerDomain = serverDomain,
-                ServerName = "AuthCenter",
-                Origins = origins,
-                TimestampDriftTolerance = 300000,
-            };
-
-            var fido2 = new Fido2(fido2Config);
+            var fido2 = new Fido2(_fido2Config);
             var credential = await fido2.MakeNewCredentialAsync(new MakeNewCredentialParams
             {
                 AttestationResponse = attestationResponse.RequestValue,
@@ -139,7 +136,7 @@ namespace AuthCenter.Controllers
                 AttestationClientDataJson = credential.AttestationClientDataJson,
                 RegDate = DateTime.UtcNow,
                 AaGuid = credential.AaGuid,
-                SignCount = 1,
+                SignCount = credential.SignCount,
             };
 
             _ = await _authCenterDbContext.WebAuthnCredential.AddAsync(storedCred);
@@ -172,17 +169,7 @@ namespace AuthCenter.Controllers
                 UserVerificationMethod = true,
             };
 
-            var origins = new HashSet<string>() { "https://localhost", RequestUrl };
-
-            var fido2Config = new Fido2Configuration
-            {
-                ServerDomain = serverDomain,
-                ServerName = "AuthCenter",
-                Origins = origins,
-                TimestampDriftTolerance = 300000,
-            };
-
-            var fido2 = new Fido2(fido2Config);
+            var fido2 = new Fido2(_fido2Config);
 
             var options = fido2.GetAssertionOptions(new GetAssertionOptionsParams
             {
@@ -216,17 +203,7 @@ namespace AuthCenter.Controllers
 
             _ = _cache.RemoveAsync(clientResponse.CacheOptionId, cancellationToken);
 
-            var origins = new HashSet<string>() { "https://localhost", "http://localhost:5888", RequestUrl };
-            var fido2Config = new Fido2Configuration
-            {
-                ServerDomain = serverDomain,
-                ServerName = "AuthCenter",
-                Origins = origins,
-                TimestampDriftTolerance = 300000,
-            };
-
-            var fido2 = new Fido2(fido2Config);
-
+            var fido2 = new Fido2(_fido2Config);
 
             var options = AssertionOptions.FromJson(optionJson);
             var credtId = Convert.ToBase64String(clientResponse.RequestValue.RawId);
@@ -249,7 +226,7 @@ namespace AuthCenter.Controllers
                 AssertionResponse = clientResponse.RequestValue,
                 OriginalOptions = options,
                 StoredPublicKey = cred.PublicKey,
-                StoredSignatureCounter = 1,
+                StoredSignatureCounter = cred.SignCount,
                 IsUserHandleOwnerOfCredentialIdCallback = callback,
             }, cancellationToken);
 
