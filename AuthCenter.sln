@@ -3,9 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.11.35327.3
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AuthCenter", "AuthCenter.csproj", "{58BA2DA8-E29C-4C04-B27E-AA1618F7CD44}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AuthCenterTest", "..\AuthCenterTest\AuthCenterTest.csproj", "{46304C82-F663-4403-AEA3-0DEB6307C78E}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AuthCenter", "AuthCenter.csproj", "{58BA2DA8-E29C-4C04-B27E-AA1618F7CD44}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -17,10 +15,6 @@ Global
 		{58BA2DA8-E29C-4C04-B27E-AA1618F7CD44}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{58BA2DA8-E29C-4C04-B27E-AA1618F7CD44}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{58BA2DA8-E29C-4C04-B27E-AA1618F7CD44}.Release|Any CPU.Build.0 = Release|Any CPU
-		{46304C82-F663-4403-AEA3-0DEB6307C78E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{46304C82-F663-4403-AEA3-0DEB6307C78E}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{46304C82-F663-4403-AEA3-0DEB6307C78E}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{46304C82-F663-4403-AEA3-0DEB6307C78E}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -131,6 +131,11 @@ if (app.Environment.IsDevelopment())
 var currentDir = Directory.GetCurrentDirectory();
 var baseDir = Path.Combine(currentDir, builder.Configuration["baseDir"] ?? "./upload");
 
+if (!Directory.Exists(baseDir))
+{
+    Directory.CreateDirectory(baseDir);
+}
+
 app.UseForwardedHeaders();
 
 app.UseStaticFiles(new StaticFileOptions

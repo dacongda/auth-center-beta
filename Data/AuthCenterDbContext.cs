@@ -154,6 +154,20 @@ namespace AuthCenter.Data
                             DefaultRoles = ["admin"],
                             ParentChain = "built-in"
                         });
+                        context.SaveChanges();
+                    }
+
+                    var defaultProvider = context.Set<Provider>().FirstOrDefault(a => a.Name == "captcha_default");
+                    if (defaultProvider == null)
+                    {
+                        context.Set<Provider>().Add(new Provider
+                        {
+                            Id = 1,
+                            Name = "captcha_default",
+                            Type = "Captcha",
+                            SubType = "Default"
+                        });
+                        context.SaveChanges();
                     }
 
                     var defaultApp = context.Set<Application>().FirstOrDefault(a => a.Name == "default");
@@ -191,22 +205,12 @@ namespace AuthCenter.Data
                                 }
                             }
                         });
+                        context.SaveChanges();
 
                         defaultGroup = context.Set<Group>().FirstOrDefault(g => g.Name == "built-in");
                         defaultGroup!.DefaultApplicationId = 1;
                         context.Set<Group>().Update(defaultGroup);
-                    }
-
-                    var defaultProvider = context.Set<Provider>().FirstOrDefault(a => a.Name == "captcha_default");
-                    if (defaultProvider == null)
-                    {
-                        context.Set<Provider>().Add(new Provider
-                        {
-                            Id = 1,
-                            Name = "captcha_default",
-                            Type = "Captcha",
-                            SubType = "Default"
-                        });
+                        context.SaveChanges();
                     }
 
                     var defaultUser = context.Set<User>().FirstOrDefault(u => u.Id == "admin");
@@ -221,6 +225,7 @@ namespace AuthCenter.Data
                             GroupId = 1,
                             IsAdmin = true
                         });
+                        context.SaveChanges();
                     }
 
                     context.SaveChanges();
