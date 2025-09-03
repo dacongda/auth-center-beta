@@ -7,6 +7,11 @@ WORKDIR /app
 EXPOSE 8080
 EXPOSE 8081
 
+FROM node:latest AS build-front
+WORKDIR /src
+COPY ["./ui", "."]
+RUN npm install -g pnpm
+RUN pnpm install && pnpm build:naive
 
 # 此阶段用于生成服务项目
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
@@ -27,4 +32,5 @@ RUN dotnet publish "./AuthCenter.csproj" -c $BUILD_CONFIGURATION -o /app/publish
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
+COPY --from=build-front /src/apps/web-naive/dist ./wwwroot
 ENTRYPOINT ["dotnet", "AuthCenter.dll"]
