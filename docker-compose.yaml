@@ -1,0 +1,44 @@
+version: "3"
+services:
+    auth-center:
+        image: dacongda/auth-center-beta:master
+        container_name: auth-test
+        restart: always
+        # volumes:
+        environment:
+            - ConnectionStrings__UserContext=Host=postgres-auth;Username=root;Password=123456;Database=auth_center
+            - ConnectionStrings__RedisContext=redis-auth:6379
+        ports:
+            - "0.0.0.0:8080:8080"
+        logging:
+            driver: "json-file"
+            options:
+                max-size: "20m"
+        depends_on:
+            - redis-auth
+            - postgres-auth
+
+    postgres-auth:
+        image: postgres:17
+        container_name: postgres-auth
+        restart: always
+        volumes:
+            - ./data/postgres:/var/lib/postgresql/data
+        environment:
+            - POSTGRES_USER=root
+            - POSTGRES_PASSWORD=123456
+        # ports:
+        #     - "0.0.0.0:5432:5432"
+        logging:
+            driver: "json-file"
+            options:
+                max-size: "20m"
+    redis-auth:
+        image: redis/redis-stack:latest
+        container_name: redis-auth
+        restart: always
+        privileged: true
+        logging:
+            driver: "json-file"
+            options:
+                max-size: "20m"
