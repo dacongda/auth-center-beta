@@ -138,7 +138,7 @@ namespace AuthCenter.Data
                     if (defaultCert == null)
                     {
                         var newCert = CertUtil.CreateNewCert("default", "RS", 256, 2048, "jwk", $"CN=Auth Center", null);
-                        newCert.Id = 1;
+                        newCert.Id = 0;
                         context.Set<Cert>().Add(newCert);
                         context.SaveChanges();
                     }
@@ -148,9 +148,9 @@ namespace AuthCenter.Data
                     {
                         context.Set<Group>().Add(new Group
                         {
-                            Id = 1,
+                            Id = 0,
                             Name = "built-in",
-                            DisplayName = "Built in group",
+                            DisplayName = "Built-in Group",
                             DefaultRoles = ["admin"],
                             ParentChain = "built-in"
                         });
@@ -162,7 +162,7 @@ namespace AuthCenter.Data
                     {
                         context.Set<Provider>().Add(new Provider
                         {
-                            Id = 1,
+                            Id = 0,
                             Name = "captcha_default",
                             Type = "Captcha",
                             SubType = "Default"
@@ -175,14 +175,17 @@ namespace AuthCenter.Data
                     {
                         context.Set<Application>().Add(new Application
                         {
-                            Id = 1,
+                            Id = 0,
                             Name = "default",
+                            DisplayName = "AuthCenter",
                             ClientId = Guid.NewGuid().ToString("N"),
                             ClientSecret = Guid.NewGuid().ToString("N"),
                             CertId = 1,
+                            ExpiredSecond = 3600 * 24 * 7, // One week
+                            AccessExpiredSecond = 3600 * 2, // Two hour
                             GroupIds = [1],
                             Scopes = ["email", "phone"],
-                            LoginMethods = [new ("password", ""), new ("code", "all"), new ("passkey", "")],
+                            LoginMethods = [new("password", ""), new("code", "all"), new("passkey", "")],
                             LoginFormSetting = new LoginFormSetting
                             {
                                 LoginPanel = new LoginFormSettingItem
@@ -203,7 +206,13 @@ namespace AuthCenter.Data
                                     Rule = "all",
                                     Visible = true,
                                 }
-                            }
+                            },
+                            ProviderItems = [new ProviderItem {
+                                FakeId = 1,
+                                ProviderId = 1,
+                                Type = "Captcha",
+                                Rule = ["Number"],
+                            }]
                         });
                         context.SaveChanges();
 

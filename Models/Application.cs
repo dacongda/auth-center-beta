@@ -107,6 +107,7 @@ namespace AuthCenter.Models
             {
                 Id,
                 Name,
+                DisplayName,
                 ClientId,
                 FaviconUrl,
                 EnableAuthorizeConfirm,
@@ -127,6 +128,7 @@ namespace AuthCenter.Models
             {
                 Id = Id,
                 Name = Name,
+                DisplayName = DisplayName,
                 ClientId = ClientId,
                 FaviconUrl = FaviconUrl,
                 EnableAuthorizeConfirm = EnableAuthorizeConfirm,
