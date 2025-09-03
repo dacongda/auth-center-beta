@@ -57,14 +57,6 @@ namespace AuthCenter.Data
                 .HasForeignKey(e => e.GroupId)
                 .IsRequired(false);
 
-            // 群组默认应用一对一
-            //modelBuilder.Entity<Group>()
-            //    .HasOne(e => e.DefaultApplication)
-            //    .WithMany()
-            //    .HasForeignKey<Group>(g => g.DefaultApplicationId)
-            //.HasConstraintName("fk_default_application")
-            //.IsRequired(false);
-
             // 应用群组一对多
             modelBuilder.Entity<Application>()
                 .HasMany<Group>()
@@ -104,6 +96,26 @@ namespace AuthCenter.Data
                 .OwnsOne(e => e.Theme, builder =>
                 {
                     builder.ToJson();
+                });
+
+            modelBuilder.Entity<Application>()
+                .OwnsOne(e => e.LoginFormSetting, builder =>
+                {
+                    builder.ToJson();
+
+                    builder.OwnsOne(b => b.Input);
+                    builder.OwnsOne(b => b.LoginPanel);
+                    builder.OwnsOne(b => b.LoginBackground);
+                    builder.OwnsOne(b => b.FormLogo);
+                    builder.OwnsOne(b => b.LoginButton);
+                    builder.OwnsOne(b => b.ThirdPartLogin);
+                });
+
+            modelBuilder.Entity<Application>()
+                .OwnsMany(e => e.LoginMethods, builder =>
+                {
+                    builder.ToJson();
+                    builder.WithOwner().HasForeignKey(f => f.FakeId);
                 });
 
             modelBuilder.Entity<Provider>()
@@ -155,7 +167,29 @@ namespace AuthCenter.Data
                             ClientSecret = Guid.NewGuid().ToString("N"),
                             CertId = 1,
                             GroupIds = [1],
-                            Scopes = ["email", "phone"]
+                            Scopes = ["email", "phone"],
+                            LoginMethods = [new ("password", ""), new ("code", "all"), new ("passkey", "")],
+                            LoginFormSetting = new LoginFormSetting
+                            {
+                                LoginPanel = new LoginFormSettingItem
+                                {
+                                    Style = null,
+                                    Rule = "right",
+                                    Visible = true,
+                                },
+                                LoginBackground = new LoginFormSettingItem
+                                {
+                                    Style = null,
+                                    Rule = null,
+                                    Visible = true,
+                                },
+                                FormLogo = new LoginFormSettingItem
+                                {
+                                    Style = null,
+                                    Rule = "all",
+                                    Visible = true,
+                                }
+                            }
                         });
 
                         defaultGroup = context.Set<Group>().FirstOrDefault(g => g.Name == "built-in");

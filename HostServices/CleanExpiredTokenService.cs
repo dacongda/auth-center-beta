@@ -9,13 +9,14 @@ namespace AuthCenter.HostServices
         private readonly ILogger<CleanExpiredTokenService> _logger = logger;
         private Timer? _timer = null;
 
-        public async Task StartAsync(CancellationToken stoppingToken)
+        public Task StartAsync(CancellationToken stoppingToken)
         {
             
             //context.Database.EnsureCreated(stoppingToken);
 
             _logger.LogInformation("Clean expired session service is running.");
             _timer = new Timer(CleanExpiredToken, null, TimeSpan.Zero, TimeSpan.FromHours(2));
+            return Task.CompletedTask;
         }
 
         private async void CleanExpiredToken(object? state)

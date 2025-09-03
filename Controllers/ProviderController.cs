@@ -23,7 +23,7 @@ namespace AuthCenter.Controllers
             if (page is not null && pageSize is not null)
             {
                 var providerPageList = _authCenterDbContext.Provider
-                    .Select(p => new { p.Id, p.Name, p.Type, p.SubType })
+                    .Select(p => new { p.Id, p.Name, p.DisplayName, p.FaviconUrl, p.Type, p.SubType })
                     .OrderBy(e => e.Id)
                     .Skip((int)((page - 1) * pageSize))
                     .Take((int)pageSize).ToList();
@@ -31,7 +31,7 @@ namespace AuthCenter.Controllers
                 return JSONResult.ResponseList(providerPageList, count);
             }
 
-            var providerList = _authCenterDbContext.Provider.Select(p => new { p.Id, p.Name, p.Type, p.SubType }).ToList();
+            var providerList = _authCenterDbContext.Provider.Select(p => new { p.Id, p.Name, p.DisplayName, p.FaviconUrl, p.Type, p.SubType }).ToList();
             return JSONResult.ResponseOk(providerList);
         }
 

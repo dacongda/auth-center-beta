@@ -1,6 +1,8 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Data;
+using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
 
 namespace AuthCenter.Models
@@ -37,6 +39,31 @@ namespace AuthCenter.Models
         public string Radius { get; set; } = "0.5";
     }
 
+    public class LoginMethod(string name, string rule)
+    {
+        [JsonIgnore]
+        public int FakeId { get; set; } = 1;
+        public string Name { get; set; } = name; 
+        public string Rule { get; set; } = rule;
+    }
+
+    public class LoginFormSettingItem
+    {
+        public string? Style { get; set; } = "";
+        public string? Rule { get; set; } = "";
+        public bool? Visible { get; set; } = true;
+    }
+
+    public class LoginFormSetting
+    {
+        public LoginFormSettingItem? LoginPanel { get; set; } = default!;
+        public LoginFormSettingItem? LoginBackground { get; set; } = default!;
+        public LoginFormSettingItem? FormLogo { get; set; } = default!;
+        public LoginFormSettingItem? Input { get; set; } = default!;
+        public LoginFormSettingItem? LoginButton { get; set; } = default!;
+        public LoginFormSettingItem? ThirdPartLogin { get; set; } = default!;
+    }
+
     [Index(nameof(ClientId), IsUnique = true)]
     public class Application : BaseModel
     {
@@ -66,13 +93,15 @@ namespace AuthCenter.Models
         public List<SamlAttribute> SamlAttributes { get; set; } = [];
         public bool SamlResponseCompress { get; set; }
         public bool SamlEncrypt { get; set; }
+        public List<LoginMethod> LoginMethods { get; set; } = [];
+        public LoginFormSetting LoginFormSetting { get; set; } = default!;
         public List<ProviderItem> ProviderItems { get; set; } = [];
         public ApplicationTheme Theme { get; set; } = new ApplicationTheme();
         public Cert? Cert { get; set; }
         [NotMapped]
         public List<Provider> Providers { get; set; } = [];
 
-        public Object getMaskedApplication()
+        public object GetMaskedApplicationObj()
         {
             return new
             {
@@ -84,9 +113,31 @@ namespace AuthCenter.Models
                 LogoUrl,
                 LogoDarkUrl,
                 Scopes,
+                LoginMethods,
+                LoginFormSetting,
                 ProviderItems,
                 Providers,
                 Theme
+            };
+        }
+
+        public Application GetMaskedApplication()
+        {
+            return new Application
+            {
+                Id = Id,
+                Name = Name,
+                ClientId = ClientId,
+                FaviconUrl = FaviconUrl,
+                EnableAuthorizeConfirm = EnableAuthorizeConfirm,
+                LogoUrl = LogoUrl,
+                LogoDarkUrl = LogoDarkUrl,
+                Scopes = Scopes,
+                LoginMethods = LoginMethods,
+                LoginFormSetting = LoginFormSetting,
+                ProviderItems = ProviderItems,
+                Providers = Providers,
+                Theme = Theme
             };
         }
     }

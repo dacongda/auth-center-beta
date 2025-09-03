@@ -114,6 +114,13 @@ namespace AuthCenter.Controllers
                 }
             }
 
+            // Check login method
+            if(!(curApplication.LoginMethods.Any(lm => lm.Name.Equals(loginUser.LoginMethod, StringComparison.CurrentCultureIgnoreCase)) 
+                || loginUser.LoginMethod == "ThirdPart"))
+            {
+                return JSONResult.ResponseError("未被允许的登陆方式");
+            }
+
             // Verify captcha
             if (loginUser.LoginMethod != "ThirdPart")
             {
@@ -403,7 +410,7 @@ namespace AuthCenter.Controllers
                 LoginApplication = application.Name ?? "",
                 LoginIp = clientIp,
                 LoginVia = loginVia,
-                ExpiredAt = DateTime.UtcNow.AddDays(7)
+                ExpiredAt = DateTime.UtcNow.AddSeconds(application.ExpiredSecond)
             };
 
             var responseType = Request.Query["response_type"];
@@ -670,7 +677,7 @@ namespace AuthCenter.Controllers
                 return JSONResult.ResponseError("已有用户用此ID注册或邮箱/手机冲突");
             }
 
-            User user = new User { Id = registerUser.Id, Name = registerUser.Name, Email = registerUser.Email, Phone = registerUser.Phone, GroupId = group.Id };
+            User user = new() { Id = registerUser.Id, Name = registerUser.Name, Email = registerUser.Email, Phone = registerUser.Phone, GroupId = group.Id };
 
             // Check email code if email provider exist and enable Register check
             var emailProviderItem = curApplication.ProviderItems.Where(pItem => pItem.Type == "Email").FirstOrDefault();

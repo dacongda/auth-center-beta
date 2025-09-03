@@ -3,6 +3,7 @@ using System;
 using AuthCenter.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AuthCenter.Migrations
 {
     [DbContext(typeof(AuthCenterDbContext))]
-    partial class AuthCenterDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250902114421_2025-9-1-2")]
+    partial class _2025912
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -725,157 +728,6 @@ namespace AuthCenter.Migrations
                                 .HasConstraintName("fk_application_application_id");
                         });
 
-                    b.OwnsOne("AuthCenter.Models.LoginFormSetting", "LoginFormSetting", b1 =>
-                        {
-                            b1.Property<int>("ApplicationId")
-                                .HasColumnType("integer");
-
-                            b1.HasKey("ApplicationId");
-
-                            b1.ToTable("application");
-
-                            b1.ToJson("login_form_setting");
-
-                            b1.WithOwner()
-                                .HasForeignKey("ApplicationId")
-                                .HasConstraintName("fk_application_application_id");
-
-                            b1.OwnsOne("AuthCenter.Models.LoginFormSettingItem", "FormLogo", b2 =>
-                                {
-                                    b2.Property<int>("LoginFormSettingApplicationId")
-                                        .HasColumnType("integer");
-
-                                    b2.Property<string>("Rule")
-                                        .HasColumnType("text");
-
-                                    b2.Property<string>("Style")
-                                        .HasColumnType("text");
-
-                                    b2.Property<bool?>("Visible")
-                                        .HasColumnType("boolean");
-
-                                    b2.HasKey("LoginFormSettingApplicationId");
-
-                                    b2.ToTable("application");
-
-                                    b2.ToJson("login_form_setting");
-
-                                    b2.WithOwner()
-                                        .HasForeignKey("LoginFormSettingApplicationId")
-                                        .HasConstraintName("fk_application_application_login_form_setting_application_id");
-                                });
-
-                            b1.OwnsOne("AuthCenter.Models.LoginFormSettingItem", "Input", b2 =>
-                                {
-                                    b2.Property<int>("LoginFormSettingApplicationId")
-                                        .HasColumnType("integer");
-
-                                    b2.Property<string>("Rule")
-                                        .HasColumnType("text");
-
-                                    b2.Property<string>("Style")
-                                        .HasColumnType("text");
-
-                                    b2.Property<bool?>("Visible")
-                                        .HasColumnType("boolean");
-
-                                    b2.HasKey("LoginFormSettingApplicationId");
-
-                                    b2.ToTable("application");
-
-                                    b2.ToJson("login_form_setting");
-
-                                    b2.WithOwner()
-                                        .HasForeignKey("LoginFormSettingApplicationId")
-                                        .HasConstraintName("fk_application_application_login_form_setting_application_id");
-                                });
-
-                            b1.OwnsOne("AuthCenter.Models.LoginFormSettingItem", "LoginButton", b2 =>
-                                {
-                                    b2.Property<int>("LoginFormSettingApplicationId")
-                                        .HasColumnType("integer");
-
-                                    b2.Property<string>("Rule")
-                                        .HasColumnType("text");
-
-                                    b2.Property<string>("Style")
-                                        .HasColumnType("text");
-
-                                    b2.Property<bool?>("Visible")
-                                        .HasColumnType("boolean");
-
-                                    b2.HasKey("LoginFormSettingApplicationId");
-
-                                    b2.ToTable("application");
-
-                                    b2.ToJson("login_form_setting");
-
-                                    b2.WithOwner()
-                                        .HasForeignKey("LoginFormSettingApplicationId")
-                                        .HasConstraintName("fk_application_application_login_form_setting_application_id");
-                                });
-
-                            b1.OwnsOne("AuthCenter.Models.LoginFormSettingItem", "LoginPanel", b2 =>
-                                {
-                                    b2.Property<int>("LoginFormSettingApplicationId")
-                                        .HasColumnType("integer");
-
-                                    b2.Property<string>("Rule")
-                                        .HasColumnType("text");
-
-                                    b2.Property<string>("Style")
-                                        .HasColumnType("text");
-
-                                    b2.Property<bool?>("Visible")
-                                        .HasColumnType("boolean");
-
-                                    b2.HasKey("LoginFormSettingApplicationId");
-
-                                    b2.ToTable("application");
-
-                                    b2.ToJson("login_form_setting");
-
-                                    b2.WithOwner()
-                                        .HasForeignKey("LoginFormSettingApplicationId")
-                                        .HasConstraintName("fk_application_application_login_form_setting_application_id");
-                                });
-
-                            b1.OwnsOne("AuthCenter.Models.LoginFormSettingItem", "ThirdPartLogin", b2 =>
-                                {
-                                    b2.Property<int>("LoginFormSettingApplicationId")
-                                        .HasColumnType("integer");
-
-                                    b2.Property<string>("Rule")
-                                        .HasColumnType("text");
-
-                                    b2.Property<string>("Style")
-                                        .HasColumnType("text");
-
-                                    b2.Property<bool?>("Visible")
-                                        .HasColumnType("boolean");
-
-                                    b2.HasKey("LoginFormSettingApplicationId");
-
-                                    b2.ToTable("application");
-
-                                    b2.ToJson("login_form_setting");
-
-                                    b2.WithOwner()
-                                        .HasForeignKey("LoginFormSettingApplicationId")
-                                        .HasConstraintName("fk_application_application_login_form_setting_application_id");
-                                });
-
-                            b1.Navigation("FormLogo");
-
-                            b1.Navigation("Input");
-
-                            b1.Navigation("LoginButton");
-
-                            b1.Navigation("LoginPanel");
-
-                            b1.Navigation("ThirdPartLogin");
-                        });
-
                     b.OwnsMany("AuthCenter.Models.LoginMethod", "LoginMethods", b1 =>
                         {
                             b1.Property<int>("FakeId")
@@ -995,9 +847,6 @@ namespace AuthCenter.Migrations
                         });
 
                     b.Navigation("Cert");
-
-                    b.Navigation("LoginFormSetting")
-                        .IsRequired();
 
                     b.Navigation("LoginMethods");
 

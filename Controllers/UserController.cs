@@ -510,7 +510,7 @@ namespace AuthCenter.Controllers
                 username = user.Name,
                 id = user.Id,
                 avatar = user.Avatar,
-                loginApplication = application.getMaskedApplication()
+                loginApplication = application.GetMaskedApplicationObj()
             });
         }
 

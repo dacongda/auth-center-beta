@@ -186,58 +186,21 @@ namespace AuthCenter.Controllers
                 return JSONResult.ResponseError("群组不存在");
             }
 
+            Application? application;
             if (clientId != null)
             {
-                var application = _authCenterDbContext.Application.Where(app => app.ClientId == clientId)
-                    .Select(app => new Application
-                    {
-                        Id = app.Id,
-                        Name = app.Name,
-                        DisplayName = app.DisplayName,
-                        FaviconUrl = app.FaviconUrl,
-                        EnableAuthorizeConfirm = app.EnableAuthorizeConfirm,
-                        LogoUrl = app.LogoUrl,
-                        LogoDarkUrl = app.LogoDarkUrl,
-                        ProviderItems = app.ProviderItems,
-                        Theme = app.Theme,
-                    }).AsNoTracking().FirstOrDefault();
-                group.DefaultApplication = application;
+                application = _authCenterDbContext.Application.Where(app => app.ClientId == clientId).AsNoTracking().FirstOrDefault();
             }
             else if (applicationId != null)
             {
-                var application = _authCenterDbContext.Application.Where(app => app.Id == applicationId)
-                    .Select(app => new Application
-                    {
-                        Id = app.Id,
-                        Name = app.Name,
-                        DisplayName = app.DisplayName,
-                        FaviconUrl = app.FaviconUrl,
-                        EnableAuthorizeConfirm = app.EnableAuthorizeConfirm,
-                        LogoUrl = app.LogoUrl,
-                        LogoDarkUrl = app.LogoDarkUrl,
-                        ProviderItems = app.ProviderItems,
-                        Theme = app.Theme,
-                    }).AsNoTracking().FirstOrDefault();
-                group.DefaultApplication = application;
+                application = _authCenterDbContext.Application.Where(app => app.Id == applicationId).AsNoTracking().FirstOrDefault();
             }
             else
             {
-                var application = _authCenterDbContext.Application.Where(app => app.Id == group.DefaultApplicationId)
-                    .Select(app => new Application
-                    {
-                        Id = app.Id,
-                        Name = app.Name,
-                        DisplayName = app.DisplayName,
-                        FaviconUrl = app.FaviconUrl,
-                        EnableAuthorizeConfirm = app.EnableAuthorizeConfirm,
-                        LogoUrl = app.LogoUrl,
-                        LogoDarkUrl = app.LogoDarkUrl,
-                        ProviderItems = app.ProviderItems,
-                        Theme = app.Theme,
-                    }).AsNoTracking().FirstOrDefault();
-                group.DefaultApplication = application;
+                application = _authCenterDbContext.Application.Where(app => app.Id == group.DefaultApplicationId).AsNoTracking().FirstOrDefault();
             }
 
+            group.DefaultApplication = application?.GetMaskedApplication();
             if (group.DefaultApplication == null)
             {
                 return JSONResult.ResponseError("应用不存在");
@@ -341,6 +304,7 @@ namespace AuthCenter.Controllers
                 s.SetProperty(g => g.Name, group.Name)
                 .SetProperty(g => g.DefaultRoles, group.DefaultRoles)
                 .SetProperty(g => g.DefaultApplicationId, group.DefaultApplicationId)
+                .SetProperty(g => g.DisableSignup, group.DisableSignup)
                 .SetProperty(g => g.ParentId, group.ParentId)
                 .SetProperty(g => g.TopId, group.TopId)
                 .SetProperty(g => g.ParentChain, group.ParentChain)
