@@ -14,6 +14,6 @@ Auth center beta is a simple SSO and IAM platform. Support OAuth, OIDC, SAML and
 
 The system still in beta version and no stable.
 
-## Deply
+## Deploy
 
 You can use docker compose file in project to deploy this project. Or you can install DotNet9, node, Pnpm to deploy by yourself.
