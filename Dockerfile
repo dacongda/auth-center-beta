@@ -12,7 +12,7 @@ WORKDIR /src
 COPY ["./ui", "."]
 RUN npm install -g pnpm
 RUN pnpm install
-RUN pnpm build:naive
+RUN pnpm run build:naive
 
 # 此阶段用于生成服务项目
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
