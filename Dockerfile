@@ -7,7 +7,7 @@ WORKDIR /app
 EXPOSE 8080
 EXPOSE 8081
 
-FROM node:latest AS build-front
+FROM node:23 AS build-front
 WORKDIR /src
 COPY ["./ui", "."]
 RUN npm install -g pnpm
