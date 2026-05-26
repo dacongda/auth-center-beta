@@ -192,21 +192,19 @@ namespace AuthCenter.Controllers
                 return JSONResult.ResponseError("无权修改");
             }
 
-            Expression<Func<SetPropertyCalls<User>, SetPropertyCalls<User>>> setPropertyCalls =
-                b => b.SetProperty(u => u.Name, user.Name);
-
-            if (user.IsAdmin)
+            _authCenterDbContext.User.Where(u => u.Id == user.Id).ExecuteUpdate(s =>
             {
-                setPropertyCalls = setPropertyCalls.Append(s =>
-                        s.SetProperty(u => u.Id, user.Id)
-                        .SetProperty(u => u.Roles, user.Roles)
-                        .SetProperty(u => u.Email, user.Email)
-                        .SetProperty(u => u.Phone, user.Phone)
-                        .SetProperty(u => u.GroupId, user.GroupId)
-                        .SetProperty(u => u.IsAdmin, user.IsAdmin));
-            }
-
-            _authCenterDbContext.User.Where(u => u.Id == user.Id).ExecuteUpdate(setPropertyCalls);
+                s.SetProperty(u => u.Name, user.Name);
+                if (user.IsAdmin)
+                {
+                    s.SetProperty(u => u.Id, user.Id)
+                    .SetProperty(u => u.Roles, user.Roles)
+                    .SetProperty(u => u.Email, user.Email)
+                    .SetProperty(u => u.Phone, user.Phone)
+                    .SetProperty(u => u.GroupId, user.GroupId)
+                    .SetProperty(u => u.IsAdmin, user.IsAdmin);
+                }
+            });
 
             return JSONResult.ResponseOk("成功");
         }

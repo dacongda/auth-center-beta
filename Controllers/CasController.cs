@@ -8,7 +8,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using NuGet.Protocol;
-using SixLabors.ImageSharp.Formats.Webp;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Web;
