@@ -28,7 +28,7 @@ AuthCenter is a unified authentication server that centralizes user identity, si
 
 | Layer | Technology |
 |-------|------------|
-| Runtime | .NET 9 (ASP.NET Core) |
+| Runtime | .NET 10 (ASP.NET Core) |
 | Database | PostgreSQL (via Entity Framework Core) |
 | Cache / Sessions | Redis |
 | Frontend | Vue 3 + Naive UI (separate [UI repo](https://github.com/dacongda/auth-center-beta-ui)) |
@@ -48,7 +48,7 @@ This starts AuthCenter, PostgreSQL 17, and Redis Stack. The API listens on port 
 
 ### Manual deployment
 
-Prerequisites: .NET 9 SDK, PostgreSQL, Redis, Node.js 23+, pnpm.
+Prerequisites: .NET 10 SDK, PostgreSQL, Redis, Node.js 23+, pnpm.
 
 ```bash
 # Backend
