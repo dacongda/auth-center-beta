@@ -1,12 +1,12 @@
 version: "3"
 services:
-    auth-center:
+    hui-pass:
         image: dacongda/auth-center-beta:master
-        container_name: auth-test
+        container_name: hui-pass
         restart: always
         # volumes:
         environment:
-            - ConnectionStrings__UserContext=Host=postgres-auth;Username=root;Password=123456;Database=auth_center
+            - ConnectionStrings__UserContext=Host=postgres-auth;Username=root;Password=123456;Database=hui_pass
             - ConnectionStrings__RedisContext=redis-auth:6379
         ports:
             - "0.0.0.0:8080:8080"

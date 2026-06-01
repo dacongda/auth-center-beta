@@ -19,7 +19,7 @@ builder.Services.AddDbContext<AuthCenterDbContext>(options =>
 builder.Services.AddStackExchangeRedisCache(options =>
 {
     options.Configuration = builder.Configuration.GetConnectionString("RedisContext");
-    options.InstanceName = "AuthCenter";
+    options.InstanceName = "HuiPass";
 });
 
 // Add services to the container.
@@ -67,7 +67,7 @@ builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-    options.KnownNetworks.Clear();
+    options.KnownIPNetworks.Clear();
     options.KnownProxies.Clear();
 });
 

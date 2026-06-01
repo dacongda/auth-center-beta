@@ -1,8 +1,8 @@
 <div align="center">
   <a>
-    <img alt="AuthCenter Logo" width="215" src="https://github.com/dacongda/auth-center-beta-ui/blob/main/apps/web-naive/public/AuthCenterLogo.svg">
+    <img alt="HuiPass Logo" width="215" src="https://github.com/dacongda/auth-center-beta-ui/blob/main/apps/web-naive/public/AuthCenterLogo.svg">
   </a>
-  <h1>AuthCenter</h1>
+  <h1>HuiPass</h1>
   <p>
     A self-hosted, multi-protocol Identity and Access Management (IAM) platform built with .NET 9 and PostgreSQL.
   </p>
@@ -10,11 +10,11 @@
 
 ## Introduction
 
-AuthCenter is a unified authentication server that centralizes user identity, sign-on, and access control for your applications. It speaks OAuth 2.0, OpenID Connect, SAML 2.0, and CAS — so whether you're protecting a modern SPA, a legacy enterprise app, or an internal tool, there's one place to manage it.
+HuiPass is a unified authentication server that centralizes user identity, sign-on, and access control for your applications. It speaks OAuth 2.0, OpenID Connect, SAML 2.0, and CAS — so whether you're protecting a modern SPA, a legacy enterprise app, or an internal tool, there's one place to manage it.
 
 **What you can do with it:**
 
-- **Single Sign-On** — Log in once across all connected applications. AuthCenter acts as both an identity provider (IdP) and a federation broker to external OAuth 2.0 / OIDC / SAML providers.
+  - **Single Sign-On** — Log in once across all connected applications. HuiPass acts as both an identity provider (IdP) and a federation broker to external OAuth 2.0 / OIDC / SAML providers.
 - **Multi-protocol support** — OAuth 2.0 authorization code flow, OIDC (with Discovery), SAML 2.0 SP-initiated SSO, and CAS service tickets out of the box.
 - **Modern authentication** — Passwordless login with FIDO2/WebAuthn (passkeys), TOTP-based multi-factor authentication (MFA), and flexible per-application login method policies.
 - **Application management** — Register any number of client applications with independent scopes, redirect URIs, token lifetimes, and fully customizable login page branding (logo, colors, theme radius, form layout).
@@ -44,7 +44,7 @@ cd auth-center-beta
 docker compose up -d
 ```
 
-This starts AuthCenter, PostgreSQL 17, and Redis Stack. The API listens on port `8080`.
+This starts HuiPass, PostgreSQL 17, and Redis Stack. The API listens on port `8080`.
 
 ### Manual deployment
 
@@ -60,4 +60,4 @@ cd ui && pnpm install && pnpm dev
 
 ## Status
 
-AuthCenter is currently in **beta**. APIs and database schema may change between releases. Production use is at your own risk.
+HuiPass is currently in **beta**. APIs and database schema may change between releases. Production use is at your own risk.
