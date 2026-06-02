@@ -226,11 +226,6 @@ pnpm run dev:naive
     "ServerName": "HuiPass"
   },
   "baseDir": "./upload",
-  // 以下按需配置
-  "SMTP": { ... },
-  "SMSProvider": "Twilio" | "Tencent",
-  "CaptchaProvider": "hCaptcha" | "reCAPTCHA" | "Cloudflare" | "Aliyun" | "Tencent",
-  "StorageProvider": "Local" | "S3"
 }
 ```
 
