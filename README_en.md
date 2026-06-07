@@ -46,6 +46,11 @@ HuiPass is a unified authentication server that centralizes user identity, sign-
 
 ## Deploy
 
+### Initial user
+
+Admin username: admin
+Admin password: rootroot
+
 ### Docker Compose (recommended)
 
 ```bash

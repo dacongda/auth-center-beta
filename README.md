@@ -177,6 +177,11 @@ AuthCenter/
 
 ## 部署指南
 
+### 初始用户名密码
+
+初始管理员账号：admin
+初始管理员密码：rootroot
+
 ### 使用 Docker Compose（推荐）
 
 ```bash
