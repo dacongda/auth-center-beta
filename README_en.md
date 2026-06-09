@@ -8,7 +8,7 @@
   </p>
 </div>
 
-[中文](./README_zh.md)
+[中文](./README.md)
 
 ## Introduction
 
