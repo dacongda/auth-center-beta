@@ -33,6 +33,12 @@ namespace AuthCenter.Providers.IdProvider
             {
                 return new Saml(provider.Body ?? "", provider.UserInfoMap, redirectUri, cache);
             }
+            else if (provider.SubType == "WeChat")
+            {
+                return new WeChat(provider.ClientId ?? "", provider.ClientSecret ?? "",
+                    provider.TokenEndpoint ?? "", provider.UserInfoEndpoint ?? "",
+                    provider.UserInfoMap, cache);
+            }
 
             throw new NotImplementedException();
         }

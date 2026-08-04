@@ -1,6 +1,7 @@
 ﻿using AuthCenter.Data;
 using AuthCenter.Handler;
 using AuthCenter.Models;
+using AuthCenter.Providers.IdProvider;
 using AuthCenter.Utils;
 using AuthCenter.ViewModels;
 using AuthCenter.ViewModels.Request;
@@ -174,7 +175,9 @@ namespace AuthCenter.Controllers
         public async Task<JSONResult> GetRequest(int id, string type)
         {
             var provider = await _authCenterDbContext.Provider.FindAsync(id);
-            if (provider is null || (provider.SubType != "OAuth2" && provider.SubType != "OIDC"))
+            if (provider is null || (provider.SubType != "OAuth2"
+                && provider.SubType != "OIDC"
+                && provider.SubType != "WeChat"))
             {
                 return JSONResult.ResponseError("无此提供商");
             }
@@ -191,21 +194,10 @@ namespace AuthCenter.Controllers
 
             var tempId = Guid.NewGuid().ToString("N");
 
-            if (type == "bind")
+            await _cache.SetStringAsync($"Bind:OAuth:{tempId}", $"{challenge},{state}", new DistributedCacheEntryOptions
             {
-                var token = Request.Headers.Authorization;
-                await _cache.SetStringAsync($"Bind:OAuth:{token}", $"{challenge},{state}", new DistributedCacheEntryOptions
-                {
-                    AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(300)
-                });
-            }
-            else
-            {
-                await _cache.SetStringAsync($"Bind:OAuth:{tempId}", $"{challenge},{state}", new DistributedCacheEntryOptions
-                {
-                    AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(300)
-                });
-            }
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(300)
+            });
 
             var responseType = provider.TokenType;
             if (String.IsNullOrEmpty(responseType))
@@ -213,19 +205,42 @@ namespace AuthCenter.Controllers
                 responseType = "code";
             }
 
-            var challengeBytes = SHA256.HashData(Encoding.UTF8.GetBytes(challenge ?? ""));
-            var redirectUrl = new UriBuilder(provider.AuthEndpoint!);
-            var queryData = new Dictionary<string, string>() {
-                { "client_id", provider.ClientId!},
-                { "redirect_uri", $"{RequestUrl}/auth/callback" },
-                { "code_challenge", Base64UrlTextEncoder.Encode(challengeBytes) },
-                { "code_challenge_method", challengeMethod ?? "" },
-                { "response_type", responseType  }};
-
-            if (provider.Scopes != null && String.IsNullOrEmpty(provider.Scopes))
+            var isWeChat = provider.SubType == "WeChat";
+            var authorizationEndpoint = isWeChat && string.IsNullOrWhiteSpace(provider.AuthEndpoint)
+                ? WeChat.DefaultAuthorizationEndpoint
+                : provider.AuthEndpoint;
+            if (string.IsNullOrWhiteSpace(authorizationEndpoint)
+                || string.IsNullOrWhiteSpace(provider.ClientId))
             {
-                queryData.Add("scope", provider.Scopes);
+                return JSONResult.ResponseError("身份提供商配置不完整");
             }
+
+            var redirectUrl = new UriBuilder(authorizationEndpoint);
+            var queryData = new Dictionary<string, string>
+            {
+                [isWeChat ? "appid" : "client_id"] = provider.ClientId,
+                ["redirect_uri"] = $"{RequestUrl}/auth/callback",
+                ["response_type"] = isWeChat ? "code" : responseType
+            };
+
+            if (isWeChat)
+            {
+                queryData["scope"] = string.IsNullOrWhiteSpace(provider.Scopes)
+                    ? "snsapi_login"
+                    : provider.Scopes;
+                redirectUrl.Fragment = "wechat_redirect";
+            }
+            else
+            {
+                var challengeBytes = SHA256.HashData(Encoding.UTF8.GetBytes(challenge));
+                queryData["code_challenge"] = Base64UrlTextEncoder.Encode(challengeBytes);
+                queryData["code_challenge_method"] = challengeMethod;
+                if (!string.IsNullOrWhiteSpace(provider.Scopes))
+                {
+                    queryData["scope"] = provider.Scopes;
+                }
+            }
+
             queryData.Add("state", state);
             redirectUrl.Query = await new FormUrlEncodedContent(queryData).ReadAsStringAsync();
 
